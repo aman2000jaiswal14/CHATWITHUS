@@ -1,0 +1,104 @@
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Check, User as UserIcon } from 'lucide-react';
+import { useChatStore } from '../../store/useChatStore';
+import { fetchAllUsers, createGroup } from '../../services/api';
+import WebSocketClient from '../../services/WebSocketClient';
+
+const CreateGroup = ({ onBack }) => {
+    const { addGroup, setCurrentView } = useChatStore();
+    const [name, setName] = useState('');
+    const [allUsers, setAllUsers] = useState([]);
+    const [selected, setSelected] = useState(new Set());
+    const [loading, setLoading] = useState(true);
+    const [creating, setCreating] = useState(false);
+
+    useEffect(() => {
+        fetchAllUsers().then(users => {
+            setAllUsers(users);
+            setLoading(false);
+        });
+    }, []);
+
+    const toggleUser = (username) => {
+        const next = new Set(selected);
+        if (next.has(username)) next.delete(username);
+        else next.add(username);
+        setSelected(next);
+    };
+
+    const handleCreate = async () => {
+        if (!name.trim()) return;
+        setCreating(true);
+        const result = await createGroup(name.trim(), [...selected]);
+        if (result.group) {
+            addGroup(result.group);
+            // Subscribe to the new group via WebSocket
+            const ws = WebSocketClient.getInstance();
+            ws.subscribeGroup(String(result.group.id));
+        }
+        setCreating(false);
+        setCurrentView('contacts');
+    };
+
+    return (
+        <div className="w-full bg-[#0f172a] flex flex-col h-full text-white">
+            <div className="h-12 border-b border-slate-800 flex items-center px-3 gap-2 flex-shrink-0">
+                <button onClick={onBack} className="p-1 text-slate-400 hover:text-white transition-colors rounded-md hover:bg-slate-800">
+                    <ArrowLeft className="w-5 h-5" />
+                </button>
+                <span className="font-semibold text-sm uppercase tracking-wide">Create Group</span>
+            </div>
+
+            <div className="px-3 py-2 flex-shrink-0">
+                <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Group name..."
+                    className="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-3 py-2 text-sm placeholder-slate-500 outline-none focus:border-emerald-800"
+                    style={{ boxShadow: 'none' }}
+                />
+            </div>
+
+            <div className="px-3 mb-1">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest">Select Members ({selected.size})</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-3 space-y-1">
+                {loading && <p className="text-xs text-slate-500 font-mono p-2">Loading...</p>}
+                {allUsers.map((user) => {
+                    const isSelected = selected.has(user.username);
+                    return (
+                        <div
+                            key={user.username}
+                            onClick={() => toggleUser(user.username)}
+                            className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-900/30 ring-1 ring-emerald-800' : 'hover:bg-slate-800'
+                                }`}
+                        >
+                            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                <UserIcon className="w-4 h-4 text-slate-400" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium truncate">{user.name}</p>
+                                <p className="text-[10px] text-slate-500">@{user.username}</p>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="p-3 border-t border-slate-800 flex-shrink-0">
+                <button
+                    onClick={handleCreate}
+                    disabled={!name.trim() || creating}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg text-sm font-semibold transition-colors uppercase tracking-wide"
+                >
+                    {creating ? 'Creating...' : 'Create Group'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+export default CreateGroup;

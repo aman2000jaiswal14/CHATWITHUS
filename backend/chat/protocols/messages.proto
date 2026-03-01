@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package wca_chat;
+
+message ChatMessage {
+    enum MessageType {
+        TEXT = 0;
+        PTT = 1;
+        BROADCAST_ALERT = 2;
+        PRESENCE_UPDATE = 3;
+    }
+
+    string message_id = 1;
+    string sender_id = 2;
+    string target_id = 3; // user_id or group_id
+    MessageType type = 4;
+    bytes payload = 5; // Encrypted content (Double Ratchet)
+    
+    int64 sent_at = 6;  // Sender device local time (ms since epoch)
+    int64 received_at = 7; // Server UTC time (ms since epoch)
+    
+    bool is_high_priority = 8;
+    bool is_group_message = 9; // Determines if target_id is a group or user
+}
+
+message Presence {
+    enum Status {
+        ONLINE = 0;
+        AWAY = 1;
+        SLEEPING = 2;
+        ON_MISSION = 3;
+    }
+    string user_id = 1;
+    Status status = 2;
+}
+
+message Command {
+    enum CommandType {
+        SUBSCRIBE_GROUP = 0;
+        UNSUBSCRIBE_GROUP = 1;
+    }
+    CommandType type = 1;
+    string target_id = 2;
+}
+
+message ProtocolWrapper {
+    oneof content {
+        ChatMessage chat_message = 1;
+        Presence presence = 2;
+        Command command = 3;
+    }
+}

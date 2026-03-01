@@ -1,0 +1,38 @@
+# Common
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python / Django (Root & Subdirectories)
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/venv/
+**/env/
+**/.venv/
+**/.env
+**/db.sqlite3
+**/db.sqlite3-journal
+**/staticfiles/
+
+# Node / Frontend
+**/node_modules/
+**/dist/
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Project Specific
+Main\ Application/static/chat/widget.js
+Main\ Application/static/chat/widget.css
+Screenshots/
+**/build/
+**/bin/
+**/.Python
