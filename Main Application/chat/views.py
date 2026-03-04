@@ -47,6 +47,30 @@ def notify_user_refresh(username):
     )
 
 
+def create_system_message(group, content):
+    """Helper to create and broadcast a system message (type 4) to a group."""
+    import uuid
+    from chat.handlers.message_handler import MessageHandler
+    
+    # We use the group creator or any admin as a dummy sender for the model 
+    # but the frontend will render it as a system message based on type=4.
+    sender = group.creator or User.objects.filter(is_superuser=True).first()
+    if not sender:
+        return None
+        
+    msg = Message.objects.create(
+        sender=sender,
+        group=group,
+        content=content,
+        message_id=str(uuid.uuid4())
+    )
+    
+    # Broadcast via WebSocket (type 4 is system)
+    handler = MessageHandler()
+    handler.broadcast_group_message(group.id, sender.username, content, msg.message_id, msg_type=4)
+    return msg
+
+
 
 def api_bookmarks(request):
     """List bookmarked users: verified and unverified separately, with unread counts."""
@@ -232,8 +256,12 @@ def api_group_create(request):
         try:
             target_user = User.objects.get(username=uname)
             group.members.add(target_user)
+            # Notify members about the new group in real-time
+            notify_user_refresh(uname)
         except User.DoesNotExist:
             pass
+
+    create_system_message(group, f"Group '{name}' created by {user.username}")
 
     return JsonResponse({
         'status': 'created',
@@ -267,6 +295,7 @@ def api_group_add_member(request, group_id):
         group.members.add(target_user)
         broadcast_group_refresh(group_id, reason='member_added')
         notify_user_refresh(username)
+        create_system_message(group, f"{user.username} added {username}")
         return JsonResponse({'status': 'added', 'username': username})
     except ChatGroup.DoesNotExist:
         return JsonResponse({'error': 'group not found'}, status=404)
@@ -295,6 +324,7 @@ def api_group_remove_member(request, group_id):
         group.admins.remove(target_user)  # Also remove admin if they were one
         broadcast_group_refresh(group_id, reason='member_removed')
         notify_user_refresh(username)  # Tell them to refresh cause they are out
+        create_system_message(group, f"{username} was removed from the group")
         return JsonResponse({'status': 'removed', 'username': username})
     except ChatGroup.DoesNotExist:
         return JsonResponse({'error': 'group not found'}, status=404)
@@ -357,6 +387,7 @@ def api_group_leave(request, group_id):
                 group.admins.add(new_admin)
 
         broadcast_group_refresh(group_id, reason='member_left')
+        create_system_message(group, f"{user.username} left the group")
         return JsonResponse({'status': 'left', 'group_deleted': False})
     except ChatGroup.DoesNotExist:
         return JsonResponse({'error': 'group not found'}, status=404)
@@ -380,6 +411,7 @@ def api_group_make_admin(request, group_id):
         if not group.members.filter(id=target_user.id).exists():
             return JsonResponse({'error': 'user is not a member'}, status=400)
         group.admins.add(target_user)
+        create_system_message(group, f"{user.username} made {target_user.username} admin")
         return JsonResponse({'status': 'promoted', 'username': username})
     except ChatGroup.DoesNotExist:
         return JsonResponse({'error': 'group not found'}, status=404)

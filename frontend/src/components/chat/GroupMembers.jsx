@@ -161,19 +161,6 @@ const GroupMembers = ({ onBack }) => {
                     </>
                 )}
             </div>
-
-            {/* Leave Group Button */}
-            {!showAddUser && (
-                <div className="p-3 border-t border-slate-800 flex-shrink-0">
-                    <button
-                        onClick={handleLeave}
-                        className="w-full py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-900 rounded-lg text-sm font-semibold transition-colors uppercase tracking-wide flex items-center justify-center gap-2"
-                    >
-                        <LogOut className="w-4 h-4" />
-                        Leave Group
-                    </button>
-                </div>
-            )}
         </div>
     );
 };

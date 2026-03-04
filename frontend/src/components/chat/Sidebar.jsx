@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useChatStore } from '../../store/useChatStore';
-import { User, MessageCircle, Users, UserPlus, PlusCircle, BookmarkMinus, ShieldCheck, ShieldQuestion, ChevronDown } from 'lucide-react';
+import { User, MessageCircle, Users, UserPlus, PlusCircle, BookmarkMinus, ShieldCheck, ShieldQuestion, ChevronDown, X } from 'lucide-react';
 import { removeBookmark, verifyBookmark, setUserStatus } from '../../services/api';
 import WebSocketClient from '../../services/WebSocketClient';
 
@@ -23,6 +23,7 @@ const Sidebar = ({ onSelectChat }) => {
         moveToUnverified, verifyContact, unreadCounts } = useChatStore();
     const [activeTab, setActiveTab] = useState('all');
     const [showStatusPicker, setShowStatusPicker] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const config = window.CHAT_CONFIG || {};
     const currentUser = config.USER_ID || 'anonymous';
@@ -79,9 +80,21 @@ const Sidebar = ({ onSelectChat }) => {
         verifyContact(username);
     };
 
-    // Count total unread for badge on tabs
-    const groupUnread = groups.reduce((sum, g) => sum + (unreadCounts[String(g.id).toLowerCase()] || 0), 0);
-    const contactUnread = bookmarks.reduce((sum, c) => sum + (unreadCounts[c.username.toLowerCase()] || 0), 0);
+    const filteredBookmarks = bookmarks.filter(b =>
+        b.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (b.name && b.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+    const filteredGroups = groups.filter(g =>
+        g.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const filteredUnverified = unverified.filter(u =>
+        u.username.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const groupUnread = filteredGroups.reduce((sum, g) => sum + (unreadCounts[String(g.id).toLowerCase()] || 0), 0);
+    const contactUnread = filteredBookmarks.reduce((sum, c) => sum + (unreadCounts[c.username.toLowerCase()] || 0), 0);
 
     const showGroups = activeTab === 'all' || activeTab === 'groups';
     const showContacts = activeTab === 'all' || activeTab === 'contacts';
@@ -220,7 +233,7 @@ const Sidebar = ({ onSelectChat }) => {
                     let badge = 0;
                     if (tab.id === 'groups') badge = groupUnread;
                     else if (tab.id === 'contacts') badge = contactUnread;
-                    else if (tab.id === 'unverified') badge = unverified.length;
+                    else if (tab.id === 'unverified') badge = filteredUnverified.length;
                     else if (tab.id === 'all') badge = groupUnread + contactUnread;
 
                     return (
@@ -245,75 +258,78 @@ const Sidebar = ({ onSelectChat }) => {
                 })}
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                {/* Groups Section */}
-                {showGroups && (
-                    <div>
+            {/* Search Bar */}
+            <div className="px-3 py-3 border-b border-slate-800/50 bg-[#0f172a]/50">
+                <div className="relative">
+                    <input
+                        type="text"
+                        placeholder="Search users or groups..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-700/50 transition-all font-mono"
+                    />
+                    <div className="absolute left-2.5 top-2 text-slate-500">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2 top-2 text-slate-500 hover:text-slate-300"
+                        >
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Content area */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
+                {showGroups && filteredGroups.length > 0 && (
+                    <div className="space-y-1">
                         {activeTab === 'all' && (
-                            <div className="flex items-center gap-2 mb-2 px-1">
+                            <div className="flex items-center gap-2 mb-1.5 px-2">
                                 <Users className="w-3 h-3 text-emerald-500" />
-                                <h2 className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Groups</h2>
-                                <span className="text-[9px] text-slate-600 ml-auto">{groups.length}</span>
+                                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Groups</h2>
+                                <span className="text-[9px] text-slate-600 ml-auto font-mono">{filteredGroups.length}</span>
                             </div>
                         )}
-                        <div className="space-y-1">
-                            {groups.length === 0 && (
-                                <p className="text-[10px] text-slate-600 font-mono px-2 py-3 text-center">No groups yet — create one above</p>
-                            )}
-                            {groups.map(renderGroupItem)}
-                        </div>
+                        {filteredGroups.map(renderGroupItem)}
                     </div>
                 )}
 
-                {/* Divider between sections on All tab */}
-                {activeTab === 'all' && groups.length > 0 && bookmarks.length > 0 && (
-                    <div className="h-px bg-slate-800/50 my-1"></div>
-                )}
-
-                {/* Contacts Section */}
-                {showContacts && (
-                    <div>
+                {showContacts && filteredBookmarks.length > 0 && (
+                    <div className="space-y-1">
                         {activeTab === 'all' && (
-                            <div className="flex items-center gap-2 mb-2 px-1">
+                            <div className="flex items-center gap-2 mb-1.5 px-2">
                                 <User className="w-3 h-3 text-slate-400" />
-                                <h2 className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Contacts</h2>
-                                <span className="text-[9px] text-slate-600 ml-auto">{bookmarks.length}</span>
+                                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Contacts</h2>
+                                <span className="text-[9px] text-slate-600 ml-auto font-mono">{filteredBookmarks.length}</span>
                             </div>
                         )}
-                        <div className="space-y-1">
-                            {bookmarks.length === 0 && (
-                                <p className="text-[10px] text-slate-600 font-mono px-2 py-3 text-center">No contacts — tap + to add</p>
-                            )}
-                            {bookmarks.map(renderContactItem)}
-                        </div>
+                        {filteredBookmarks.map(renderContactItem)}
                     </div>
                 )}
 
-                {/* Divider */}
-                {activeTab === 'all' && unverified.length > 0 && (
-                    <div className="h-px bg-slate-800/50 my-1"></div>
-                )}
-
-                {/* Unverified Section */}
-                {showUnverified && unverified.length > 0 && (
-                    <div>
+                {showUnverified && filteredUnverified.length > 0 && (
+                    <div className="space-y-1">
                         {activeTab === 'all' && (
-                            <div className="flex items-center gap-2 mb-2 px-1">
-                                <ShieldQuestion className="w-3 h-3 text-amber-400" />
-                                <h2 className="text-[10px] font-semibold text-amber-500 uppercase tracking-widest">Unverified</h2>
-                                <span className="text-[9px] text-amber-600 ml-auto">{unverified.length}</span>
+                            <div className="flex items-center gap-2 mb-1.5 px-2">
+                                <ShieldQuestion className="w-3 h-3 text-amber-500" />
+                                <h2 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Unverified</h2>
+                                <span className="text-[9px] text-amber-600 ml-auto font-mono">{filteredUnverified.length}</span>
                             </div>
                         )}
-                        <div className="space-y-1">
-                            {unverified.map(renderUnverifiedItem)}
-                        </div>
+                        {filteredUnverified.map(renderUnverifiedItem)}
                     </div>
                 )}
 
-                {/* Empty state for unverified tab */}
-                {activeTab === 'unverified' && unverified.length === 0 && (
-                    <p className="text-[10px] text-slate-600 font-mono px-2 py-6 text-center">No unverified contacts</p>
+                {filteredBookmarks.length === 0 && filteredGroups.length === 0 && filteredUnverified.length === 0 && (
+                    <div className="py-20 text-center flex flex-col items-center justify-center opacity-50">
+                        <MessageCircle className="w-8 h-8 text-slate-700 mb-2" />
+                        <p className="text-xs text-slate-500 font-mono">No matches found</p>
+                    </div>
                 )}
             </div>
         </div>

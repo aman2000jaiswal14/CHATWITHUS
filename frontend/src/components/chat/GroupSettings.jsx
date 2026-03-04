@@ -22,6 +22,7 @@ const GroupSettings = ({ onBack }) => {
         const result = await leaveGroup(activeChatId);
         if (result.status === 'left') {
             setGroups(groups.filter(g => String(g.id) !== activeChatId));
+            useChatStore.setState({ activeChatId: null, isGroupChat: false });
             setCurrentView('contacts');
         }
     };
@@ -107,7 +108,6 @@ const GroupSettings = ({ onBack }) => {
                             )}
                         </div>
                     )}
-                    <p className="text-[11px] text-slate-500 mt-1 font-mono">ID: {group.id}</p>
                 </div>
 
                 {/* Info Cards */}

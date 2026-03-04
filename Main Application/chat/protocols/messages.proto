@@ -8,6 +8,7 @@ message ChatMessage {
         PTT = 1;
         BROADCAST_ALERT = 2;
         PRESENCE_UPDATE = 3;
+        SYSTEM = 4;
     }
 
     string message_id = 1;

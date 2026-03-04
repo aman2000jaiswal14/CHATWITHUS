@@ -9,6 +9,8 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
     const [isRecording, setIsRecording] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [pendingAttachment, setPendingAttachment] = useState(null);
+    const [mentionQuery, setMentionQuery] = useState(null);
+    const [selectedMentionIdx, setSelectedMentionIdx] = useState(0);
     const fileInputRef = useRef(null);
 
     const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence } = useChatStore();
@@ -115,6 +117,49 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         }
     };
 
+    const handleInputChanges = (e) => {
+        const val = e.target.value;
+        setInputText(val);
+
+        const lastAtCharIdx = val.lastIndexOf('@');
+        if (lastAtCharIdx !== -1) {
+            const query = val.slice(lastAtCharIdx + 1);
+            if (!query.includes(' ')) {
+                setMentionQuery(query.toLowerCase());
+                setSelectedMentionIdx(0);
+                return;
+            }
+        }
+        setMentionQuery(null);
+    };
+
+    const insertMention = (username) => {
+        const lastAtIdx = inputText.lastIndexOf('@');
+        const before = inputText.slice(0, lastAtIdx);
+        setInputText(before + '@' + username + ' ');
+        setMentionQuery(null);
+    };
+
+    const filteredMentionUsers = (() => {
+        if (mentionQuery === null) return [];
+        let candidates = [];
+        if (isGroupChat) {
+            const group = groups.find(g => String(g.id) === activeChatId);
+            if (group && group.members) candidates = group.members;
+            else {
+                // Fallback to all bookmarks if group members not yet loaded here
+                candidates = bookmarks.map(b => ({ username: b.username, name: b.name }));
+            }
+        } else {
+            candidates = bookmarks.map(b => ({ username: b.username, name: b.name }));
+        }
+
+        return candidates.filter(u =>
+            u.username.toLowerCase().includes(mentionQuery) ||
+            (u.name && u.name.toLowerCase().includes(mentionQuery))
+        ).slice(0, 5);
+    })();
+
     const renderAttachment = (att) => {
         if (!att || !att.url) return null;
         const isImage = att.type?.startsWith('image/');
@@ -154,6 +199,17 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         if (!timestamp) return '';
         const date = new Date(Number(timestamp));
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const renderContentWithMentions = (content) => {
+        if (!content) return '';
+        const parts = content.split(/(@\w+)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('@')) {
+                return <span key={i} className="text-emerald-400 font-bold bg-emerald-400/10 px-1 rounded">{part}</span>;
+            }
+            return part;
+        });
     };
 
     let chatName = activeChatId || "SECURE CHANNEL";
@@ -230,36 +286,47 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                                     <div className="flex-1 h-px bg-amber-500/30"></div>
                                 </div>
                             )}
-                            <div className={`flex flex-col max-w-[85%] ${isOwn ? 'self-end ml-auto' : 'self-start mr-auto'}`}>
-                                <div className="flex items-baseline gap-1.5 mb-0.5">
-                                    <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : 'text-emerald-500'}`}>{isOwn ? 'ME' : msg.senderId}</span>
-                                    <span className="text-[9px] text-slate-600 font-mono">{formatTime(msg.sentAt)}</span>
+
+                            {msg.type === 4 ? (
+                                <div className="flex items-center justify-center w-full my-3">
+                                    <div className="bg-slate-800/40 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-700/10 transition-all duration-300">
+                                        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider font-mono">
+                                            {msg.payload ? new TextDecoder().decode(msg.payload) : ''}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className={`px-3 py-2 rounded-lg text-sm shadow-sm border transition-all duration-300
-                                    ${isUnread
-                                        ? 'bg-amber-900/20 border-amber-500/40 text-amber-50 ring-1 ring-amber-500/30'
-                                        : msg.isHighPriority
-                                            ? 'bg-red-900/50 border-red-500 text-red-100'
-                                            : isOwn
-                                                ? 'bg-emerald-900/20 border-emerald-700 text-slate-100'
-                                                : 'bg-[#1e293b] border-slate-700 text-slate-200'
-                                    }`}>
-                                    {msg.type === 0 && <p className="break-words">{msg.payload ? new TextDecoder().decode(msg.payload) : ''}</p>}
-                                    {renderAttachment(msg.attachment)}
-                                    {msg.type === 1 && (
-                                        <div className="flex items-center gap-2">
-                                            <Mic className="text-emerald-400 w-4 h-4" />
-                                            <span className="font-mono text-xs">BURST AUDIO [PTT]</span>
-                                        </div>
-                                    )}
-                                    {msg.type === 2 && (
-                                        <div className="flex items-center gap-2 font-bold uppercase text-red-400">
-                                            <ShieldAlert className="w-4 h-4" />
-                                            <span className="text-xs">COMMANDER OVERRIDE</span>
-                                        </div>
-                                    )}
+                            ) : (
+                                <div className={`flex flex-col max-w-[85%] ${isOwn ? 'self-end ml-auto' : 'self-start mr-auto'}`}>
+                                    <div className="flex items-baseline gap-1.5 mb-0.5">
+                                        <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : 'text-emerald-500'}`}>{isOwn ? 'ME' : msg.senderId}</span>
+                                        <span className="text-[9px] text-slate-600 font-mono">{formatTime(msg.sentAt)}</span>
+                                    </div>
+                                    <div className={`px-3 py-2 rounded-lg text-sm shadow-sm border transition-all duration-300
+                                        ${isUnread
+                                            ? 'bg-amber-900/20 border-amber-500/40 text-amber-50 ring-1 ring-amber-500/30'
+                                            : msg.isHighPriority
+                                                ? 'bg-red-900/50 border-red-500 text-red-100'
+                                                : isOwn
+                                                    ? 'bg-emerald-900/20 border-emerald-700 text-slate-100'
+                                                    : 'bg-[#1e293b] border-slate-700 text-slate-200'
+                                        }`}>
+                                        {msg.type === 0 && <p className="break-words">{renderContentWithMentions(msg.payload ? new TextDecoder().decode(msg.payload) : '')}</p>}
+                                        {renderAttachment(msg.attachment)}
+                                        {msg.type === 1 && (
+                                            <div className="flex items-center gap-2">
+                                                <Mic className="text-emerald-400 w-4 h-4" />
+                                                <span className="font-mono text-xs">BURST AUDIO [PTT]</span>
+                                            </div>
+                                        )}
+                                        {msg.type === 2 && (
+                                            <div className="flex items-center gap-2 font-bold uppercase text-red-400">
+                                                <ShieldAlert className="w-4 h-4" />
+                                                <span className="text-xs">COMMANDER OVERRIDE</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </React.Fragment>
                     );
                 })}
@@ -278,6 +345,25 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                         </button>
                     </div>
                 )}
+
+                {mentionQuery !== null && filteredMentionUsers.length > 0 && (
+                    <div className="mb-2 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-2">
+                        {filteredMentionUsers.map((user, i) => (
+                            <div
+                                key={user.username}
+                                onClick={() => insertMention(user.username)}
+                                className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-2 transition-colors ${i === selectedMentionIdx ? 'bg-emerald-600/30 text-emerald-400' : 'hover:bg-slate-700 text-slate-300'}`}
+                            >
+                                <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-[10px]">
+                                    {user.username[0].toUpperCase()}
+                                </div>
+                                <span className="font-bold">{user.username}</span>
+                                {user.name && <span className="opacity-50">— {user.name}</span>}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 <div className="flex items-center gap-1 bg-[#1e293b] rounded-lg p-1.5 border border-slate-700 focus-within:border-emerald-800 transition-colors">
                     <button
                         onClick={() => fileInputRef.current?.click()}
@@ -295,8 +381,25 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                     <input
                         type="text"
                         value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        onChange={handleInputChanges}
+                        onKeyDown={(e) => {
+                            if (mentionQuery !== null && filteredMentionUsers.length > 0) {
+                                if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    setSelectedMentionIdx((selectedMentionIdx + 1) % filteredMentionUsers.length);
+                                } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    setSelectedMentionIdx((selectedMentionIdx - 1 + filteredMentionUsers.length) % filteredMentionUsers.length);
+                                } else if (e.key === 'Enter' || e.key === 'Tab') {
+                                    e.preventDefault();
+                                    insertMention(filteredMentionUsers[selectedMentionIdx].username);
+                                } else if (e.key === 'Escape') {
+                                    setMentionQuery(null);
+                                }
+                            } else if (e.key === 'Enter') {
+                                handleSend();
+                            }
+                        }}
                         placeholder="Type message..."
                         className="flex-1 bg-transparent border-none outline-none text-sm placeholder-slate-500 px-2 focus:ring-0"
                         style={{ boxShadow: 'none' }}
@@ -317,6 +420,7 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                     </button>
                 </div>
             </div>
+
             {showExport && (
                 <ExportModal
                     chatId={activeChatId}
