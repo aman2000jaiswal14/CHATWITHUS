@@ -21,13 +21,28 @@ function App() {
     const wsClient = WebSocketClient.getInstance(wsUrl, currentUser);
     wsClient.connect();
 
+    const initialUnreads = {};
+
     fetchBookmarks().then(data => {
       setBookmarks(data.bookmarks || []);
       setUnverified(data.unverified || []);
+
+      (data.bookmarks || []).forEach(b => {
+        if (b.unread_count > 0) initialUnreads[b.username.toLowerCase()] = b.unread_count;
+      });
+      (data.unverified || []).forEach(b => {
+        if (b.unread_count > 0) initialUnreads[b.username.toLowerCase()] = b.unread_count;
+      });
+      useChatStore.getState().setUnreadCounts({ ...useChatStore.getState().unreadCounts, ...initialUnreads });
     }).catch(console.error);
 
     fetchGroups().then(groups => {
       setGroups(groups);
+      groups.forEach(g => {
+        if (g.unread_count > 0) initialUnreads[String(g.id).toLowerCase()] = g.unread_count;
+      });
+      useChatStore.getState().setUnreadCounts({ ...useChatStore.getState().unreadCounts, ...initialUnreads });
+
       const ws = WebSocketClient.getInstance();
       if (ws && ws.socket && ws.socket.readyState === WebSocket.OPEN) {
         groups.forEach(g => ws.subscribeGroup(String(g.id)));
@@ -53,7 +68,7 @@ function App() {
     setCurrentView('contacts');
   };
 
-  const handleSendMessage = (text) => {
+  const handleSendMessage = (text, attachment = null) => {
     if (!activeChatId) return;
     const wsClient = WebSocketClient.getInstance();
     const payload = {
@@ -63,7 +78,7 @@ function App() {
       sentAt: Date.now(),
       isHighPriority: false
     };
-    wsClient.sendMessage(activeChatId, isGroupChat, payload);
+    wsClient.sendMessage(activeChatId, isGroupChat, payload, attachment);
   };
 
   const activeMessages = activeChatId ? (messagesByChat[activeChatId] || []) : [];

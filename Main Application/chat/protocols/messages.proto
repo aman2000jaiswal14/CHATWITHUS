@@ -21,6 +21,15 @@ message ChatMessage {
     
     bool is_high_priority = 8;
     bool is_group_message = 9; // Determines if target_id is a group or user
+
+    message Attachment {
+        string id = 1;
+        string name = 2;
+        string type = 3;
+        string url = 4;
+        int32 size = 5;
+    }
+    Attachment attachment = 10;
 }
 
 message Presence {

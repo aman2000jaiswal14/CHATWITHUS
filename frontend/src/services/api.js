@@ -1,7 +1,20 @@
 const config = () => window.CHAT_CONFIG || {};
 
-function getHeaders(method) {
-    const headers = { 'Content-Type': 'application/json' };
+function getUrl(path) {
+    const base = config().API_BASE_URL || '';
+    // If base is provided, ensure it doesn't end with slash if path starts with one
+    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${cleanBase}${cleanPath}`;
+}
+
+function getHeaders(method, isMultipart = false) {
+    const headers = {
+        'X-Chat-User': config().USER_ID || ''
+    };
+    if (!isMultipart) {
+        headers['Content-Type'] = 'application/json';
+    }
     if (method === 'POST') {
         headers['X-CSRFToken'] = config().CSRF_TOKEN || '';
     }
@@ -9,12 +22,12 @@ function getHeaders(method) {
 }
 
 export async function fetchBookmarks() {
-    const res = await fetch(config().API_BOOKMARKS_URL || '/chat/api/bookmarks/', { credentials: 'same-origin' });
+    const res = await fetch(getUrl('/chat/api/bookmarks/'), { credentials: 'same-origin', headers: getHeaders('GET') });
     return res.json();
 }
 
 export async function addBookmark(username) {
-    const res = await fetch(config().API_BOOKMARK_ADD_URL || '/chat/api/bookmarks/add/', {
+    const res = await fetch(getUrl('/chat/api/bookmarks/add/'), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
@@ -23,7 +36,7 @@ export async function addBookmark(username) {
 }
 
 export async function removeBookmark(username) {
-    const res = await fetch(config().API_BOOKMARK_REMOVE_URL || '/chat/api/bookmarks/remove/', {
+    const res = await fetch(getUrl('/chat/api/bookmarks/remove/'), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
@@ -32,7 +45,7 @@ export async function removeBookmark(username) {
 }
 
 export async function verifyBookmark(username) {
-    const res = await fetch('/chat/api/bookmarks/verify/', {
+    const res = await fetch(getUrl('/chat/api/bookmarks/verify/'), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
@@ -41,19 +54,19 @@ export async function verifyBookmark(username) {
 }
 
 export async function fetchAllUsers() {
-    const res = await fetch(config().API_USERS_URL || '/chat/api/users/', { credentials: 'same-origin' });
+    const res = await fetch(getUrl('/chat/api/users/'), { credentials: 'same-origin', headers: getHeaders('GET') });
     const data = await res.json();
     return data.users || [];
 }
 
 export async function fetchGroups() {
-    const res = await fetch(config().API_GROUPS_URL || '/chat/api/groups/', { credentials: 'same-origin' });
+    const res = await fetch(getUrl('/chat/api/groups/'), { credentials: 'same-origin', headers: getHeaders('GET') });
     const data = await res.json();
     return data.groups || [];
 }
 
 export async function createGroup(name, members) {
-    const res = await fetch(config().API_GROUP_CREATE_URL || '/chat/api/groups/create/', {
+    const res = await fetch(getUrl('/chat/api/groups/create/'), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ name, members }),
@@ -62,12 +75,12 @@ export async function createGroup(name, members) {
 }
 
 export async function fetchGroupMembers(groupId) {
-    const res = await fetch(`/chat/api/groups/${groupId}/members/`, { credentials: 'same-origin' });
+    const res = await fetch(getUrl(`/chat/api/groups/${groupId}/members/`), { credentials: 'same-origin', headers: getHeaders('GET') });
     return res.json();
 }
 
 export async function removeGroupMember(groupId, username) {
-    const res = await fetch(`/chat/api/groups/${groupId}/remove_member/`, {
+    const res = await fetch(getUrl(`/chat/api/groups/${groupId}/remove_member/`), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
@@ -76,7 +89,7 @@ export async function removeGroupMember(groupId, username) {
 }
 
 export async function addGroupMember(groupId, username) {
-    const res = await fetch(`/chat/api/groups/${groupId}/add_member/`, {
+    const res = await fetch(getUrl(`/chat/api/groups/${groupId}/add_member/`), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
@@ -85,7 +98,7 @@ export async function addGroupMember(groupId, username) {
 }
 
 export async function leaveGroup(groupId) {
-    const res = await fetch(`/chat/api/groups/${groupId}/leave/`, {
+    const res = await fetch(getUrl(`/chat/api/groups/${groupId}/leave/`), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({}),
@@ -94,7 +107,7 @@ export async function leaveGroup(groupId) {
 }
 
 export async function makeGroupAdmin(groupId, username) {
-    const res = await fetch(`/chat/api/groups/${groupId}/make_admin/`, {
+    const res = await fetch(getUrl(`/chat/api/groups/${groupId}/make_admin/`), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
@@ -103,15 +116,37 @@ export async function makeGroupAdmin(groupId, username) {
 }
 
 export async function fetchStatuses() {
-    const res = await fetch('/chat/api/status/', { credentials: 'same-origin' });
+    const res = await fetch(getUrl('/chat/api/status/'), { credentials: 'same-origin', headers: getHeaders('GET') });
     return res.json();
 }
 
 export async function setUserStatus(status) {
-    const res = await fetch('/chat/api/status/set/', {
+    const res = await fetch(getUrl('/chat/api/status/set/'), {
         method: 'POST', credentials: 'same-origin',
         headers: getHeaders('POST'),
         body: JSON.stringify({ status }),
     });
     return res.json();
+}
+
+export async function markRead(chatId, isGroup) {
+    const res = await fetch(getUrl('/chat/api/mark_read/'), {
+        method: 'POST', credentials: 'same-origin',
+        headers: getHeaders('POST'),
+        body: JSON.stringify({ chat_id: chatId, is_group: isGroup }),
+    });
+    return res.json();
+}
+
+export async function uploadAttachment(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(getUrl('/chat/api/upload/'), {
+        method: 'POST', credentials: 'same-origin',
+        headers: getHeaders('POST', true), // true flag for multipart
+        body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
 }

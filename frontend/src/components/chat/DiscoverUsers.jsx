@@ -67,8 +67,8 @@ const DiscoverUsers = ({ onBack }) => {
                         <button
                             onClick={() => handleToggleBookmark(user)}
                             className={`p-1.5 rounded-md transition-colors ${user.is_bookmarked
-                                    ? 'text-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/20'
-                                    : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-700'
+                                ? 'text-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/20'
+                                : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-700'
                                 }`}
                             title={user.is_bookmarked ? 'Remove bookmark' : 'Add bookmark'}
                         >

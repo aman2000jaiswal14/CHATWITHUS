@@ -1,12 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download } from 'lucide-react';
+import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
+import { markRead, uploadAttachment } from '../../services/api';
 
 const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread = 0 }) => {
     const [inputText, setInputText] = useState('');
     const [isRecording, setIsRecording] = useState(false);
-    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats } = useChatStore();
+    const [isUploading, setIsUploading] = useState(false);
+    const [pendingAttachment, setPendingAttachment] = useState(null);
+    const fileInputRef = useRef(null);
+
+    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence } = useChatStore();
+
+    const getFullUrl = (url) => {
+        if (!url) return '';
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+        const config = window.CHAT_CONFIG || {};
+        const base = config.API_BASE_URL || '';
+        const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+        const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+        return `${cleanBase}${cleanUrl}`;
+    };
     const scrollRef = useRef(null);
     const [unreadStartIdx, setUnreadStartIdx] = useState(null);
     const [showExport, setShowExport] = useState(false);
@@ -18,18 +33,30 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         }
     }, [messages, activeChatId]);
 
-    // Fetch history and determine unread marker
+    // Fetch history, mark as read, and determine unread marker
     useEffect(() => {
         if (!activeChatId) return;
 
+        // Mark as read in backend
+        markRead(activeChatId, isGroupChat).catch(console.error);
+
         if (!fetchedChats.has(activeChatId)) {
-            fetch(`/chat/api/history/${activeChatId}/?is_group=${isGroupChat}`)
+            const config = window.CHAT_CONFIG || {};
+            const baseUrl = config.API_BASE_URL || '';
+            const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}`;
+
+            fetch(url, {
+                headers: {
+                    'X-Chat-User': config.USER_ID || ''
+                }
+            })
                 .then(res => res.json())
                 .then(data => {
                     if (data.messages) {
                         const processed = data.messages.map(m => ({
                             ...m,
-                            payload: m.payload ? new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16))) : null
+                            payload: m.payload ? new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16))) : null,
+                            attachment: m.attachment
                         }));
                         setMessages(activeChatId, processed);
 
@@ -53,11 +80,74 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         }
     }, [activeChatId]);
 
-    const handleSend = () => {
-        if (inputText.trim()) {
-            onSendMessage(inputText);
-            setInputText('');
+    const handleSend = async () => {
+        if (!inputText.trim() && !pendingAttachment) return;
+
+        let attachment = null;
+        if (pendingAttachment) {
+            attachment = {
+                id: pendingAttachment.id,
+                name: pendingAttachment.name,
+                type: pendingAttachment.type,
+                url: pendingAttachment.url,
+                size: pendingAttachment.size
+            };
         }
+
+        onSendMessage(inputText, attachment);
+        setInputText('');
+        setPendingAttachment(null);
+    };
+
+    const handleFileSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const result = await uploadAttachment(file);
+            setPendingAttachment(result);
+        } catch (err) {
+            alert('Failed to upload file');
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const renderAttachment = (att) => {
+        if (!att || !att.url) return null;
+        const isImage = att.type?.startsWith('image/');
+        const absoluteUrl = getFullUrl(att.url);
+
+        if (isImage) {
+            return (
+                <div className="mt-2 rounded-lg overflow-hidden border border-slate-700 bg-slate-800 max-w-sm">
+                    <img src={absoluteUrl} alt={att.name} className="w-full h-auto block cursor-pointer" onClick={() => window.open(absoluteUrl, '_blank')} />
+                </div>
+            );
+        }
+
+        return (
+            <div className="mt-2 flex items-center gap-3 p-2 rounded-lg border border-slate-700 bg-slate-800/50 group hover:bg-slate-800 transition-colors">
+                <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-500">
+                    <FileText size={16} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-200 truncate">{att.name}</p>
+                    <p className="text-[10px] text-slate-500">{(att.size / 1024).toFixed(1)} KB</p>
+                </div>
+                <a
+                    href={absoluteUrl}
+                    download={att.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
+                >
+                    <Download size={14} />
+                </a>
+            </div>
+        );
     };
 
     const formatTime = (timestamp) => {
@@ -84,7 +174,11 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                 </button>
                 <div className="min-w-0 flex-1">
                     <span className="font-semibold tracking-wide uppercase text-sm block truncate">{chatName}</span>
-                    <span className="text-[10px] text-emerald-400 font-mono">ENCRYPTED</span>
+                    {!isGroupChat && (
+                        <span className={`text-[10px] font-mono ${presence[activeChatId]?.is_online ? 'text-emerald-400' : 'text-slate-500'}`}>
+                            {presence[activeChatId]?.is_online ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                    )}
                 </div>
                 {isGroupChat && (
                     <div className="flex gap-1">
@@ -150,7 +244,8 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                                                 ? 'bg-emerald-900/20 border-emerald-700 text-slate-100'
                                                 : 'bg-[#1e293b] border-slate-700 text-slate-200'
                                     }`}>
-                                    {msg.type === 0 && <p className="break-words">{msg.payload ? new TextDecoder().decode(msg.payload) : 'Encrypted'}</p>}
+                                    {msg.type === 0 && <p className="break-words">{msg.payload ? new TextDecoder().decode(msg.payload) : ''}</p>}
+                                    {renderAttachment(msg.attachment)}
                                     {msg.type === 1 && (
                                         <div className="flex items-center gap-2">
                                             <Mic className="text-emerald-400 w-4 h-4" />
@@ -172,7 +267,31 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
 
             {/* Input Area */}
             <div className="p-2 bg-[#0f172a] border-t border-slate-800 flex-shrink-0">
+                {pendingAttachment && pendingAttachment.url && (
+                    <div className="mb-2 flex items-center gap-2 p-2 bg-slate-800 border border-slate-700 rounded-lg animate-in fade-in slide-in-from-bottom-2">
+                        <div className="p-1.5 bg-slate-900 rounded-md text-emerald-400">
+                            {pendingAttachment.type?.startsWith('image/') ? <ImageIcon size={14} /> : <FileText size={14} />}
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-300 flex-1 truncate">{pendingAttachment.name}</span>
+                        <button onClick={() => setPendingAttachment(null)} className="p-1 hover:bg-slate-700 rounded-full text-slate-500 transition-colors">
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
                 <div className="flex items-center gap-1 bg-[#1e293b] rounded-lg p-1.5 border border-slate-700 focus-within:border-emerald-800 transition-colors">
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className={`p-1.5 rounded-md transition-colors ${isUploading ? 'text-slate-600' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        {isUploading ? <div className="w-4 h-4 border-2 border-slate-600 border-t-emerald-400 rounded-full animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                    </button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        className="hidden"
+                    />
                     <input
                         type="text"
                         value={inputText}

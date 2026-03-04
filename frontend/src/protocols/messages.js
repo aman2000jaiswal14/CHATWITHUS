@@ -31,6 +31,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @property {number|Long|null} [receivedAt] ChatMessage receivedAt
          * @property {boolean|null} [isHighPriority] ChatMessage isHighPriority
          * @property {boolean|null} [isGroupMessage] ChatMessage isGroupMessage
+         * @property {wca_chat.ChatMessage.IAttachment|null} [attachment] ChatMessage attachment
          */
 
         /**
@@ -121,6 +122,14 @@ export const wca_chat = $root.wca_chat = (() => {
         ChatMessage.prototype.isGroupMessage = false;
 
         /**
+         * ChatMessage attachment.
+         * @member {wca_chat.ChatMessage.IAttachment|null|undefined} attachment
+         * @memberof wca_chat.ChatMessage
+         * @instance
+         */
+        ChatMessage.prototype.attachment = null;
+
+        /**
          * Creates a new ChatMessage instance using the specified properties.
          * @function create
          * @memberof wca_chat.ChatMessage
@@ -162,6 +171,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 writer.uint32(/* id 8, wireType 0 =*/64).bool(message.isHighPriority);
             if (message.isGroupMessage != null && Object.hasOwnProperty.call(message, "isGroupMessage"))
                 writer.uint32(/* id 9, wireType 0 =*/72).bool(message.isGroupMessage);
+            if (message.attachment != null && Object.hasOwnProperty.call(message, "attachment"))
+                $root.wca_chat.ChatMessage.Attachment.encode(message.attachment, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
             return writer;
         };
 
@@ -230,6 +241,10 @@ export const wca_chat = $root.wca_chat = (() => {
                     }
                 case 9: {
                         message.isGroupMessage = reader.bool();
+                        break;
+                    }
+                case 10: {
+                        message.attachment = $root.wca_chat.ChatMessage.Attachment.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -301,6 +316,11 @@ export const wca_chat = $root.wca_chat = (() => {
             if (message.isGroupMessage != null && message.hasOwnProperty("isGroupMessage"))
                 if (typeof message.isGroupMessage !== "boolean")
                     return "isGroupMessage: boolean expected";
+            if (message.attachment != null && message.hasOwnProperty("attachment")) {
+                let error = $root.wca_chat.ChatMessage.Attachment.verify(message.attachment);
+                if (error)
+                    return "attachment." + error;
+            }
             return null;
         };
 
@@ -373,6 +393,11 @@ export const wca_chat = $root.wca_chat = (() => {
                 message.isHighPriority = Boolean(object.isHighPriority);
             if (object.isGroupMessage != null)
                 message.isGroupMessage = Boolean(object.isGroupMessage);
+            if (object.attachment != null) {
+                if (typeof object.attachment !== "object")
+                    throw TypeError(".wca_chat.ChatMessage.attachment: object expected");
+                message.attachment = $root.wca_chat.ChatMessage.Attachment.fromObject(object.attachment);
+            }
             return message;
         };
 
@@ -413,6 +438,7 @@ export const wca_chat = $root.wca_chat = (() => {
                     object.receivedAt = options.longs === String ? "0" : 0;
                 object.isHighPriority = false;
                 object.isGroupMessage = false;
+                object.attachment = null;
             }
             if (message.messageId != null && message.hasOwnProperty("messageId"))
                 object.messageId = message.messageId;
@@ -438,6 +464,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 object.isHighPriority = message.isHighPriority;
             if (message.isGroupMessage != null && message.hasOwnProperty("isGroupMessage"))
                 object.isGroupMessage = message.isGroupMessage;
+            if (message.attachment != null && message.hasOwnProperty("attachment"))
+                object.attachment = $root.wca_chat.ChatMessage.Attachment.toObject(message.attachment, options);
             return object;
         };
 
@@ -483,6 +511,302 @@ export const wca_chat = $root.wca_chat = (() => {
             values[valuesById[2] = "BROADCAST_ALERT"] = 2;
             values[valuesById[3] = "PRESENCE_UPDATE"] = 3;
             return values;
+        })();
+
+        ChatMessage.Attachment = (function() {
+
+            /**
+             * Properties of an Attachment.
+             * @memberof wca_chat.ChatMessage
+             * @interface IAttachment
+             * @property {string|null} [id] Attachment id
+             * @property {string|null} [name] Attachment name
+             * @property {string|null} [type] Attachment type
+             * @property {string|null} [url] Attachment url
+             * @property {number|null} [size] Attachment size
+             */
+
+            /**
+             * Constructs a new Attachment.
+             * @memberof wca_chat.ChatMessage
+             * @classdesc Represents an Attachment.
+             * @implements IAttachment
+             * @constructor
+             * @param {wca_chat.ChatMessage.IAttachment=} [properties] Properties to set
+             */
+            function Attachment(properties) {
+                if (properties)
+                    for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * Attachment id.
+             * @member {string} id
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @instance
+             */
+            Attachment.prototype.id = "";
+
+            /**
+             * Attachment name.
+             * @member {string} name
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @instance
+             */
+            Attachment.prototype.name = "";
+
+            /**
+             * Attachment type.
+             * @member {string} type
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @instance
+             */
+            Attachment.prototype.type = "";
+
+            /**
+             * Attachment url.
+             * @member {string} url
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @instance
+             */
+            Attachment.prototype.url = "";
+
+            /**
+             * Attachment size.
+             * @member {number} size
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @instance
+             */
+            Attachment.prototype.size = 0;
+
+            /**
+             * Creates a new Attachment instance using the specified properties.
+             * @function create
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {wca_chat.ChatMessage.IAttachment=} [properties] Properties to set
+             * @returns {wca_chat.ChatMessage.Attachment} Attachment instance
+             */
+            Attachment.create = function create(properties) {
+                return new Attachment(properties);
+            };
+
+            /**
+             * Encodes the specified Attachment message. Does not implicitly {@link wca_chat.ChatMessage.Attachment.verify|verify} messages.
+             * @function encode
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {wca_chat.ChatMessage.IAttachment} message Attachment message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Attachment.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                    writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+                if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                    writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                    writer.uint32(/* id 3, wireType 2 =*/26).string(message.type);
+                if (message.url != null && Object.hasOwnProperty.call(message, "url"))
+                    writer.uint32(/* id 4, wireType 2 =*/34).string(message.url);
+                if (message.size != null && Object.hasOwnProperty.call(message, "size"))
+                    writer.uint32(/* id 5, wireType 0 =*/40).int32(message.size);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified Attachment message, length delimited. Does not implicitly {@link wca_chat.ChatMessage.Attachment.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {wca_chat.ChatMessage.IAttachment} message Attachment message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Attachment.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes an Attachment message from the specified reader or buffer.
+             * @function decode
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {wca_chat.ChatMessage.Attachment} Attachment
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Attachment.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.ChatMessage.Attachment();
+                while (reader.pos < end) {
+                    let tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1: {
+                            message.id = reader.string();
+                            break;
+                        }
+                    case 2: {
+                            message.name = reader.string();
+                            break;
+                        }
+                    case 3: {
+                            message.type = reader.string();
+                            break;
+                        }
+                    case 4: {
+                            message.url = reader.string();
+                            break;
+                        }
+                    case 5: {
+                            message.size = reader.int32();
+                            break;
+                        }
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes an Attachment message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {wca_chat.ChatMessage.Attachment} Attachment
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Attachment.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies an Attachment message.
+             * @function verify
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            Attachment.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.id != null && message.hasOwnProperty("id"))
+                    if (!$util.isString(message.id))
+                        return "id: string expected";
+                if (message.name != null && message.hasOwnProperty("name"))
+                    if (!$util.isString(message.name))
+                        return "name: string expected";
+                if (message.type != null && message.hasOwnProperty("type"))
+                    if (!$util.isString(message.type))
+                        return "type: string expected";
+                if (message.url != null && message.hasOwnProperty("url"))
+                    if (!$util.isString(message.url))
+                        return "url: string expected";
+                if (message.size != null && message.hasOwnProperty("size"))
+                    if (!$util.isInteger(message.size))
+                        return "size: integer expected";
+                return null;
+            };
+
+            /**
+             * Creates an Attachment message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {wca_chat.ChatMessage.Attachment} Attachment
+             */
+            Attachment.fromObject = function fromObject(object) {
+                if (object instanceof $root.wca_chat.ChatMessage.Attachment)
+                    return object;
+                let message = new $root.wca_chat.ChatMessage.Attachment();
+                if (object.id != null)
+                    message.id = String(object.id);
+                if (object.name != null)
+                    message.name = String(object.name);
+                if (object.type != null)
+                    message.type = String(object.type);
+                if (object.url != null)
+                    message.url = String(object.url);
+                if (object.size != null)
+                    message.size = object.size | 0;
+                return message;
+            };
+
+            /**
+             * Creates a plain object from an Attachment message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {wca_chat.ChatMessage.Attachment} message Attachment
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            Attachment.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                let object = {};
+                if (options.defaults) {
+                    object.id = "";
+                    object.name = "";
+                    object.type = "";
+                    object.url = "";
+                    object.size = 0;
+                }
+                if (message.id != null && message.hasOwnProperty("id"))
+                    object.id = message.id;
+                if (message.name != null && message.hasOwnProperty("name"))
+                    object.name = message.name;
+                if (message.type != null && message.hasOwnProperty("type"))
+                    object.type = message.type;
+                if (message.url != null && message.hasOwnProperty("url"))
+                    object.url = message.url;
+                if (message.size != null && message.hasOwnProperty("size"))
+                    object.size = message.size;
+                return object;
+            };
+
+            /**
+             * Converts this Attachment to JSON.
+             * @function toJSON
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            Attachment.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            /**
+             * Gets the default type url for Attachment
+             * @function getTypeUrl
+             * @memberof wca_chat.ChatMessage.Attachment
+             * @static
+             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns {string} The default type url
+             */
+            Attachment.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+                if (typeUrlPrefix === undefined) {
+                    typeUrlPrefix = "type.googleapis.com";
+                }
+                return typeUrlPrefix + "/wca_chat.ChatMessage.Attachment";
+            };
+
+            return Attachment;
         })();
 
         return ChatMessage;

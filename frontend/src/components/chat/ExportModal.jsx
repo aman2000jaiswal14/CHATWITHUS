@@ -3,9 +3,10 @@ import { Download, X, Calendar, FileText, Loader2 } from 'lucide-react';
 
 const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
     const today = new Date().toISOString().split('T')[0];
-    const [dateFrom, setDateFrom] = useState('');
+    const [dateFrom, setDateFrom] = useState(today);
     const [dateTo, setDateTo] = useState(today);
     const [exporting, setExporting] = useState(false);
+    const [includeAttachments, setIncludeAttachments] = useState(false);
 
     const handleExport = async () => {
         setExporting(true);
@@ -14,9 +15,17 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                 is_group: String(isGroup),
                 from: dateFrom,
                 to: dateTo,
+                include_attachments: String(includeAttachments),
             });
-            const response = await fetch(`/chat/api/export/${chatId}/?${params}`, {
+            const config = window.CHAT_CONFIG || {};
+            const baseUrl = config.API_BASE_URL || '';
+            const apiUrl = `${baseUrl}/chat/api/export/${chatId}/?${params}`;
+
+            const response = await fetch(apiUrl, {
                 credentials: 'same-origin',
+                headers: {
+                    'X-Chat-User': config.USER_ID || ''
+                }
             });
 
             if (!response.ok) {
@@ -30,7 +39,8 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `chat_export_${chatId}_${dateFrom || 'all'}_${dateTo || 'now'}.txt`;
+            const extension = includeAttachments ? 'zip' : 'txt';
+            a.download = `chat_export_${chatId}_${dateFrom || 'all'}_${dateTo || 'now'}.${extension}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -95,6 +105,19 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                             style={{ colorScheme: 'dark' }}
                         />
                     </div>
+
+                    <div className="flex items-center gap-2 pt-2 px-1">
+                        <input
+                            type="checkbox"
+                            id="include-attachments"
+                            checked={includeAttachments}
+                            onChange={e => setIncludeAttachments(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-[#0f172a]"
+                        />
+                        <label htmlFor="include-attachments" className="text-xs text-slate-400 cursor-pointer select-none">
+                            Include Attachment Links
+                        </label>
+                    </div>
                 </div>
 
                 {/* Actions */}
@@ -108,7 +131,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                         {exporting ? (
                             <><Loader2 className="w-4 h-4 animate-spin" /> Exporting...</>
                         ) : (
-                            <><Download className="w-4 h-4" /> Export .txt</>
+                            <><Download className="w-4 h-4" /> Export</>
                         )}
                     </button>
                 </div>

@@ -195,6 +195,19 @@
         {% block content %}
         {% endblock %}
     </div>
+
+    {% if user.is_authenticated %}
+    <!-- Chat Widget Config -->
+    <script>
+        window.CHAT_CONFIG = {
+            USER_ID: "{{ user.username }}",
+            CSRF_TOKEN: "{{ csrf_token }}",
+            WS_URL: ((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws/chat/{{ user.username }}/"
+        };
+    </script>
+    <!-- Chat Widget Script -->
+    <script src="{% static 'chat/widget.js' %}"></script>
+    {% endif %}
 </body>
 
 </html>

@@ -95,7 +95,43 @@ class UserStatus(models.Model):
         related_name='chat_status'
     )
     status = models.IntegerField(choices=STATUS_CHOICES, default=0)
+    is_online = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.user.username}: {self.get_status_display()}"
+
+
+class ChatReadCursor(models.Model):
+    """Tracks when a user last read a particular chat (DM or group)."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='read_cursors'
+    )
+    chat_id = models.CharField(max_length=150)  # username for DM, group ID for groups
+    is_group = models.BooleanField(default=False)
+    last_read_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'chat_id', 'is_group')
+
+    def __str__(self):
+        return f"{self.user.username} read {self.chat_id} at {self.last_read_at}"
+
+
+class MessageAttachment(models.Model):
+    """Metadata for a file attached to a message."""
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name='attachments'
+    )
+    file = models.FileField(upload_to='chat_attachments/%Y/%m/%d/')
+    file_name = models.CharField(max_length=255)
+    file_type = models.CharField(max_length=100)
+    file_size = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Attachment for {self.message.message_id}: {self.file_name}"

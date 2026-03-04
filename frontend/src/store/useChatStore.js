@@ -61,8 +61,8 @@ export const useChatStore = create((set, get) => ({
         return newState;
     }),
 
-    updatePresence: (userId, status) => set((state) => ({
-        presence: { ...state.presence, [userId]: status }
+    updatePresence: (userId, statusData) => set((state) => ({
+        presence: { ...state.presence, [String(userId).toLowerCase()]: statusData }
     })),
 
     setBookmarks: (bookmarks) => set({ bookmarks }),
@@ -98,4 +98,5 @@ export const useChatStore = create((set, get) => ({
     addGroup: (group) => set((state) => ({
         groups: [...state.groups, group]
     })),
+    setUnreadCounts: (counts) => set({ unreadCounts: counts }),
 }));

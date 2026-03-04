@@ -42,8 +42,13 @@ class WebSocketClient {
                         console.log('[WS] Group refresh signal received:', data.reason);
                         this._refreshGroups();
                     } else if (data.type === 'presence_update') {
-                        console.log('[WS] Presence update:', data.user_id, data.status);
-                        useChatStore.getState().updatePresence(data.user_id, data.status);
+                        console.log('[WS] Presence update:', data.user_id, data.status, data.is_online);
+                        // Store the whole object or just status? 
+                        // Let's store { status, is_online } for consistency with API
+                        useChatStore.getState().updatePresence(data.user_id, {
+                            status: data.status,
+                            is_online: data.is_online
+                        });
                     }
                 } catch (err) {
                     console.error('[WS] Failed to parse text message', err);
@@ -78,7 +83,10 @@ class WebSocketClient {
                         this._refreshBookmarks();
                     }
                 } else if (wrapper.presence) {
-                    useChatStore.getState().updatePresence(wrapper.presence.userId, wrapper.presence.status);
+                    useChatStore.getState().updatePresence(wrapper.presence.userId, {
+                        status: wrapper.presence.status,
+                        is_online: true
+                    });
                 }
             } catch (err) {
                 console.error('[WS] Failed to decode message', err);
@@ -96,10 +104,14 @@ class WebSocketClient {
         };
     }
 
-    sendMessage(targetId, isGroup, payload) {
+    sendMessage(targetId, isGroup, payload, attachment = null) {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             const lowerId = String(targetId).toLowerCase();
-            const chatMessage = { ...payload, targetId, isGroupMessage: isGroup, senderId: this.userId };
+            const messageObj = { ...payload, targetId, isGroupMessage: isGroup, senderId: this.userId };
+            if (attachment) {
+                messageObj.attachment = attachment;
+            }
+            const chatMessage = messageObj;
             const wrapper = ProtocolWrapper.create({ chatMessage });
             const buffer = ProtocolWrapper.encode(wrapper).finish();
             this.socket.send(buffer);

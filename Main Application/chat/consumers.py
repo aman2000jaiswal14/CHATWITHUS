@@ -12,6 +12,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         super().__init__(*args, **kwargs)
         self.message_handler = MessageHandler()
         self.joined_groups = set()
+        self.user_id = None
 
     async def connect(self):
         self.user_id = self.scope['url_route']['kwargs']['user_id']
@@ -26,8 +27,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.accept()
         print(f"[WS CONNECTED] user={self.user_id}")
 
+        # Update and broadcast online status
+        await self.update_user_online_status(True)
+        await self.broadcast_presence(is_connecting=True)
+
     async def disconnect(self, close_code):
         print(f"[WS DISCONNECTED] user={self.user_id}")
+        
+        # Update and broadcast offline status
+        await self.update_user_online_status(False)
+        await self.broadcast_presence(is_connecting=False)
+
         for group in self.joined_groups:
             await self.channel_layer.group_discard(group, self.channel_name)
 
@@ -122,7 +132,55 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'presence_update',
             'user_id': event['user_id'],
             'status': event['status'],
+            'is_online': event.get('is_online', True)
         }))
+
+    @database_sync_to_async
+    def update_user_online_status(self, is_online):
+        from .models import UserStatus
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            user = User.objects.get(username=self.user_id)
+            UserStatus.objects.update_or_create(
+                user=user,
+                defaults={'is_online': is_online}
+            )
+        except User.DoesNotExist:
+            print(f"[WS] User not found during status update: {self.user_id}")
+        except Exception as e:
+            print(f"[WS] Error updating status for {self.user_id}: {e}")
+
+    @database_sync_to_async
+    def get_user_status_info(self, username):
+        from .models import UserStatus
+        try:
+            us = UserStatus.objects.get(user__username=username)
+            return {'status': us.status, 'is_online': us.is_online}
+        except UserStatus.DoesNotExist:
+            return {'status': 0, 'is_online': False}
+
+    async def broadcast_presence(self, is_connecting=True):
+        """Broadcast user status to all contacts."""
+        if not self.user_id:
+            return
+            
+        # Get status from DB
+        status_info = await self.get_user_status_info(self.user_id)
+        
+        payload = {
+            'type': 'presence_update',
+            'user_id': self.user_id,
+            'status': status_info['status'] if status_info['is_online'] else None,
+            'is_online': status_info['is_online']
+        }
+        
+        contact_ids = await self.get_contact_user_ids(self.user_id)
+        for uid in contact_ids:
+            await self.channel_layer.group_send(
+                f'user_{uid}',
+                payload
+            )
 
     # --- DB helpers ---
 
@@ -165,7 +223,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if message.is_group_message:
                 try:
                     group = ChatGroup.objects.get(id=int(message.target_id))
-                    DBMessage.objects.get_or_create(
+                    db_message, created = DBMessage.objects.get_or_create(
                         message_id=message.message_id,
                         defaults={
                             'sender': sender,
@@ -173,12 +231,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'content': content,
                         }
                     )
+                    # Handle attachment
+                    if message.HasField('attachment'):
+                        from .models import MessageAttachment
+                        MessageAttachment.objects.get_or_create(
+                            message=db_message,
+                            file_name=message.attachment.name,
+                            defaults={
+                                'file': message.attachment.url.replace('/media/', ''), # Strip media prefix for storage
+                                'file_type': message.attachment.type,
+                                'file_size': message.attachment.size,
+                            }
+                        )
                 except (ChatGroup.DoesNotExist, ValueError):
                     pass
             else:
                 try:
                     recipient = User.objects.get(username=message.target_id)
-                    DBMessage.objects.get_or_create(
+                    db_message, created = DBMessage.objects.get_or_create(
                         message_id=message.message_id,
                         defaults={
                             'sender': sender,
@@ -186,9 +256,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'content': content,
                         }
                     )
+                    # Handle attachment
+                    if message.HasField('attachment'):
+                        from .models import MessageAttachment
+                        MessageAttachment.objects.get_or_create(
+                            message=db_message,
+                            file_name=message.attachment.name,
+                            defaults={
+                                'file': message.attachment.url.replace('/media/', ''), # Strip media prefix for storage
+                                'file_type': message.attachment.type,
+                                'file_size': message.attachment.size,
+                            }
+                        )
                 except User.DoesNotExist:
                     pass
         except User.DoesNotExist:
             print(f"[DB SAVE] Sender not found: {message.sender_id}")
         except Exception as e:
             print(f"[DB SAVE ERROR] {e}")
+            import traceback
+            traceback.print_exc()

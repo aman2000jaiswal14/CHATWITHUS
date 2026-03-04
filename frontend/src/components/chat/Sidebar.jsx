@@ -29,16 +29,30 @@ const Sidebar = ({ onSelectChat }) => {
     const myStatus = presence[currentUser] ?? 0;
     const currentStatusObj = STATUS_OPTIONS.find(s => s.value === myStatus) || STATUS_OPTIONS[0];
 
-    const getStatusColor = (userId) => {
-        const s = presence[userId];
-        const opt = STATUS_OPTIONS.find(o => o.value === s);
-        return opt ? opt.color : 'bg-gray-500';
+    const getStatusColor = (username) => {
+        const lower = username.toLowerCase();
+        const p = presence[lower];
+        if (!p || !p.is_online) return 'bg-slate-500'; // Offline
+        switch (p.status) {
+            case 0: return 'bg-emerald-500';
+            case 1: return 'bg-amber-500';
+            case 2: return 'bg-indigo-500';
+            case 3: return 'bg-rose-500';
+            default: return 'bg-emerald-500';
+        }
     };
 
-    const getStatusLabel = (userId) => {
-        const s = presence[userId];
-        const opt = STATUS_OPTIONS.find(o => o.value === s);
-        return opt ? opt.label : 'Offline';
+    const getStatusLabel = (username) => {
+        const lower = username.toLowerCase();
+        const p = presence[lower];
+        if (!p || !p.is_online) return 'Offline';
+        switch (p.status) {
+            case 0: return 'Online';
+            case 1: return 'Away';
+            case 2: return 'Sleeping';
+            case 3: return 'Working';
+            default: return 'Online';
+        }
     };
 
     const handleStatusChange = async (status) => {
@@ -46,7 +60,7 @@ const Sidebar = ({ onSelectChat }) => {
             await setUserStatus(status);
             // The local store will be updated either by the API success or by the incoming WS broadcast.
             // But we can update it immediately for better UX.
-            useChatStore.getState().updatePresence(currentUser, status);
+            useChatStore.getState().updatePresence(currentUser, { status, is_online: true });
         } catch (err) {
             console.error('Failed to set status:', err);
         }

@@ -19,4 +19,6 @@ urlpatterns = [
     path('api/export/<str:chat_id>/', views.api_export_messages, name='chat_export'),
     path('api/status/set/', views.api_set_status, name='chat_set_status'),
     path('api/status/', views.api_get_statuses, name='chat_get_statuses'),
+    path('api/mark_read/', views.api_mark_read, name='chat_mark_read'),
+    path('api/upload/', views.api_upload_attachment, name='chat_upload_attachment'),
 ]
