@@ -23,6 +23,7 @@ function getHeaders(method, isMultipart = false) {
 
 export async function fetchBookmarks() {
     const res = await fetch(getUrl('/chat/api/bookmarks/'), { credentials: 'same-origin', headers: getHeaders('GET') });
+    if (!res.ok) throw res;
     return res.json();
 }
 
@@ -32,6 +33,7 @@ export async function addBookmark(username) {
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
     });
+    if (!res.ok) throw res;
     return res.json();
 }
 
@@ -41,6 +43,7 @@ export async function removeBookmark(username) {
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
     });
+    if (!res.ok) throw res;
     return res.json();
 }
 
@@ -50,17 +53,20 @@ export async function verifyBookmark(username) {
         headers: getHeaders('POST'),
         body: JSON.stringify({ username }),
     });
+    if (!res.ok) throw res;
     return res.json();
 }
 
 export async function fetchAllUsers() {
     const res = await fetch(getUrl('/chat/api/users/'), { credentials: 'same-origin', headers: getHeaders('GET') });
+    if (!res.ok) throw res;
     const data = await res.json();
     return data.users || [];
 }
 
 export async function fetchGroups() {
     const res = await fetch(getUrl('/chat/api/groups/'), { credentials: 'same-origin', headers: getHeaders('GET') });
+    if (!res.ok) throw res;
     const data = await res.json();
     return data.groups || [];
 }
@@ -71,6 +77,7 @@ export async function createGroup(name, members) {
         headers: getHeaders('POST'),
         body: JSON.stringify({ name, members }),
     });
+    if (!res.ok) throw res;
     return res.json();
 }
 
@@ -117,6 +124,7 @@ export async function makeGroupAdmin(groupId, username) {
 
 export async function fetchStatuses() {
     const res = await fetch(getUrl('/chat/api/status/'), { credentials: 'same-origin', headers: getHeaders('GET') });
+    if (!res.ok) throw res;
     return res.json();
 }
 

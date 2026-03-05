@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from .models import Bookmark, ChatGroup, Message, ChatReadCursor
+from django.db.models import Max, Q
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
@@ -62,6 +63,7 @@ def create_system_message(group, content):
         sender=sender,
         group=group,
         content=content,
+        message_type=4,  # System Message
         message_id=str(uuid.uuid4())
     )
     
@@ -81,7 +83,7 @@ def api_bookmarks(request):
 
     # Get all read cursors for DMs
     cursors = {c.chat_id: c.last_read_at for c in ChatReadCursor.objects.filter(user=user, is_group=False)}
-
+    
     verified = []
     for b in bookmarks.filter(is_verified=True):
         uname = b.bookmarked_user.username
@@ -90,12 +92,20 @@ def api_bookmarks(request):
             unread = Message.objects.filter(sender=b.bookmarked_user, recipient=user, timestamp__gt=last_read).count()
         else:
             unread = Message.objects.filter(sender=b.bookmarked_user, recipient=user).count()
+            
+        # Get latest message timestamp
+        last_msg_at = Message.objects.filter(
+            (Q(sender=user) & Q(recipient=b.bookmarked_user)) |
+            (Q(sender=b.bookmarked_user) & Q(recipient=user))
+        ).aggregate(Max('timestamp'))['timestamp__max']
+        
         verified.append({
             'username': uname,
             'name': b.bookmarked_user.name or uname,
             'role': b.bookmarked_user.role,
             'is_verified': True,
             'unread_count': unread,
+            'last_message_at': int(last_msg_at.timestamp() * 1000) if last_msg_at else 0
         })
 
     unverified = []
@@ -106,12 +116,20 @@ def api_bookmarks(request):
             unread = Message.objects.filter(sender=b.bookmarked_user, recipient=user, timestamp__gt=last_read).count()
         else:
             unread = Message.objects.filter(sender=b.bookmarked_user, recipient=user).count()
+            
+        # Get latest message timestamp
+        last_msg_at = Message.objects.filter(
+            (Q(sender=user) & Q(recipient=b.bookmarked_user)) |
+            (Q(sender=b.bookmarked_user) & Q(recipient=user))
+        ).aggregate(Max('timestamp'))['timestamp__max']
+        
         unverified.append({
             'username': uname,
             'name': b.bookmarked_user.name or uname,
             'role': b.bookmarked_user.role,
             'is_verified': False,
             'unread_count': unread,
+            'last_message_at': int(last_msg_at.timestamp() * 1000) if last_msg_at else 0
         })
 
     return JsonResponse({'bookmarks': verified, 'unverified': unverified})
@@ -222,6 +240,10 @@ def api_groups(request):
             unread = Message.objects.filter(group=g, timestamp__gt=last_read).exclude(sender=user).count()
         else:
             unread = Message.objects.filter(group=g).exclude(sender=user).count()
+            
+        # Get latest message timestamp
+        last_msg_at = Message.objects.filter(group=g).aggregate(Max('timestamp'))['timestamp__max']
+        
         result.append({
             'id': g.id,
             'name': g.name,
@@ -229,6 +251,7 @@ def api_groups(request):
             'member_count': g.members.count(),
             'is_admin': g.admins.filter(id=user.id).exists(),
             'unread_count': unread,
+            'last_message_at': int(last_msg_at.timestamp() * 1000) if last_msg_at else 0
         })
 
     return JsonResponse({'groups': result})
@@ -448,11 +471,11 @@ def api_chat_history(request, chat_id):
     data = []
     for msg in reversed(history):
         msg_dict = {
-            'messageId': f"db_{msg.id}",
+            'messageId': msg.message_id,
             'senderId': msg.sender.username,
             'targetId': chat_id,
             'isGroupMessage': is_group,
-            'type': 0,
+            'type': msg.message_type,
             'payload': msg.content.encode('utf-8').hex(),
             'sentAt': int(msg.timestamp.timestamp() * 1000)
         }
@@ -747,3 +770,33 @@ def api_upload_attachment(request):
         'size': uploaded_file.size,
         'url': url
     })
+
+
+@csrf_exempt
+@require_POST
+def api_register(request):
+    """Register a new user with default credentials."""
+    data = json.loads(request.body)
+    username = data.get('username')
+    name = data.get('name')
+    role = data.get('role')
+
+    if not username or not name or not role:
+        return JsonResponse({'error': 'all fields required'}, status=400)
+
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({'error': 'username already exists'}, status=400)
+
+    try:
+        user = User.objects.create_user(
+            username=username,
+            name=name,
+            role=role,
+            password='Test@123',
+            email='Test@gmail.com'
+        )
+        from .models import UserStatus
+        UserStatus.objects.get_or_create(user=user, defaults={'status': 0})
+        return JsonResponse({'status': 'created', 'username': username})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

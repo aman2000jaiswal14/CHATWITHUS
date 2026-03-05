@@ -13,6 +13,9 @@ export const useChatStore = create((set, get) => ({
     unreadCounts: {},    // { chatId: count }
     fetchedChats: new Set(), // Track which chats have had history loaded
     lastOpenedUnread: 0,  // Snapshot of unread count when chat was opened
+    isRegistered: true,
+
+    setIsRegistered: (val) => set({ isRegistered: val }),
 
     setActiveChat: (chatId, isGroup) => set((state) => {
         const lowerId = String(chatId).toLowerCase();
@@ -52,6 +55,23 @@ export const useChatStore = create((set, get) => ({
         const newState = {
             messagesByChat: { ...state.messagesByChat, [lowerId]: [...list, message] }
         };
+
+        // Update last_message_at for sorting
+        const timestamp = Number(message.sentAt) || Date.now();
+        if (state.groups.some(g => String(g.id).toLowerCase() === lowerId)) {
+            newState.groups = state.groups.map(g =>
+                String(g.id).toLowerCase() === lowerId ? { ...g, last_message_at: timestamp } : g
+            );
+        } else if (state.bookmarks.some(b => b.username.toLowerCase() === lowerId)) {
+            newState.bookmarks = state.bookmarks.map(b =>
+                b.username.toLowerCase() === lowerId ? { ...b, last_message_at: timestamp } : b
+            );
+        } else if (state.unverified.some(u => u.username.toLowerCase() === lowerId)) {
+            newState.unverified = state.unverified.map(u =>
+                u.username.toLowerCase() === lowerId ? { ...u, last_message_at: timestamp } : u
+            );
+        }
+
         if (state.activeChatId !== lowerId) {
             newState.unreadCounts = {
                 ...state.unreadCounts,

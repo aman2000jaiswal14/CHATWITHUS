@@ -70,6 +70,7 @@ class Message(models.Model):
         null=True, blank=True
     )
     content = models.TextField()
+    message_type = models.IntegerField(default=0)  # 0: Text, 1: Audio, 2: Override, 4: System
     message_id = models.CharField(max_length=100, unique=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 

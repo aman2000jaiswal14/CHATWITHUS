@@ -3,11 +3,15 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import stylesString from './index.css?inline';
 import { MessageSquare, X } from 'lucide-react';
+import { useChatStore } from './store/useChatStore';
 
 const ChatWidget = () => {
   const hostRef = useRef(null);
   const shadowRootRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
+  const { unreadCounts } = useChatStore();
+
+  const totalUnread = Object.values(unreadCounts).reduce((acc, count) => acc + count, 0);
 
   useEffect(() => {
     if (hostRef.current && !shadowRootRef.current) {
@@ -79,7 +83,41 @@ const ChatWidget = () => {
         onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
       >
         {isOpen ? <X size={24} /> : <MessageSquare size={24} />}
+
+        {totalUnread > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '-5px',
+              right: '-5px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              minWidth: '20px',
+              height: '20px',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 5px',
+              border: '2px solid white',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              animation: 'pulse 2s infinite',
+            }}
+          >
+            {totalUnread > 99 ? '99+' : totalUnread}
+          </div>
+        )}
       </button>
+
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
     </>
   );
 };

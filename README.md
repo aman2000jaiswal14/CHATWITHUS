@@ -1,4 +1,4 @@
-# WCA Secure Sovereign Chat 🛡️
+# WCA Secure Chat 🛡️
 
 This repository contains the **Defense-Grade, Zero-Cost, Plug-and-Play** messaging platform designed for restricted **1 Mbps isolated networks**.
 
@@ -73,5 +73,5 @@ In your target application (e.g., a Django generic Template or a standard HTML p
 
 ### Why this works flawlessly (Zero-CSS Conflict):
 When the React script executes, it does **not** render standard DOM nodes globally. Instead, it locates the `<div id="root">`, attaches an isolated `#shadow-root (open)`, and renders the entire modern Tailwind interface inside of it. 
-No matter what CSS is running on the host application (Bootstrap, generic tags, etc.), the Sovereign Chat widget will remain completely shielded and look pixel-perfect.
+No matter what CSS is running on the host application (Bootstrap, generic tags, etc.), the  Chat widget will remain completely shielded and look pixel-perfect.
 # CHATWITHUS

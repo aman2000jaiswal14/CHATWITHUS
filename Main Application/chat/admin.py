@@ -26,8 +26,8 @@ class ChatGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('sender', 'recipient', 'group', 'content_preview', 'timestamp')
-    list_filter = ('timestamp', 'group')
+    list_display = ('sender', 'recipient', 'group', 'message_type', 'content_preview', 'timestamp')
+    list_filter = ('timestamp', 'group', 'message_type')
     search_fields = ('sender__username', 'recipient__username', 'content')
     readonly_fields = ('timestamp',)
 

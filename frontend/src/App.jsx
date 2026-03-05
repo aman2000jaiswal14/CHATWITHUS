@@ -5,12 +5,14 @@ import DiscoverUsers from './components/chat/DiscoverUsers';
 import CreateGroup from './components/chat/CreateGroup';
 import GroupMembers from './components/chat/GroupMembers';
 import GroupSettings from './components/chat/GroupSettings';
+import Register from './components/chat/Register';
 import { useChatStore } from './store/useChatStore';
 import WebSocketClient from './services/WebSocketClient';
 import { fetchBookmarks, fetchGroups, fetchStatuses } from './services/api';
 
 function App() {
   const { messagesByChat, activeChatId, isGroupChat, currentView, lastOpenedUnread,
+    isRegistered, setIsRegistered,
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const config = window.CHAT_CONFIG || {};
@@ -34,7 +36,10 @@ function App() {
         if (b.unread_count > 0) initialUnreads[b.username.toLowerCase()] = b.unread_count;
       });
       useChatStore.getState().setUnreadCounts({ ...useChatStore.getState().unreadCounts, ...initialUnreads });
-    }).catch(console.error);
+    }).catch(err => {
+      console.error(err);
+      if (err.message.includes('401') || err.status === 401) setIsRegistered(false);
+    });
 
     fetchGroups().then(groups => {
       setGroups(groups);
@@ -47,7 +52,10 @@ function App() {
       if (ws && ws.socket && ws.socket.readyState === WebSocket.OPEN) {
         groups.forEach(g => ws.subscribeGroup(String(g.id)));
       }
-    }).catch(console.error);
+    }).catch(err => {
+      console.error(err);
+      if (err.message?.includes('401') || err.status === 401) setIsRegistered(false);
+    });
 
     // Load persisted statuses for all contacts
     fetchStatuses().then(data => {
@@ -55,7 +63,10 @@ function App() {
       Object.entries(data.statuses || {}).forEach(([userId, status]) => {
         updatePresence(userId, status);
       });
-    }).catch(console.error);
+    }).catch(err => {
+      console.error(err);
+      if (err.message?.includes('401') || err.status === 401) setIsRegistered(false);
+    });
   }, [wsUrl, currentUser, setBookmarks, setUnverified, setGroups]);
 
   const handleSelectChat = (chatId, isGroup) => {
@@ -82,6 +93,10 @@ function App() {
   };
 
   const activeMessages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
+
+  if (!isRegistered) {
+    return <Register />;
+  }
 
   return (
     <div className="flex flex-col h-full w-full bg-[#0a0f1c] font-sans antialiased text-slate-300 overflow-hidden">

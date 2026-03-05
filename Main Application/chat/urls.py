@@ -21,4 +21,5 @@ urlpatterns = [
     path('api/status/', views.api_get_statuses, name='chat_get_statuses'),
     path('api/mark_read/', views.api_mark_read, name='chat_mark_read'),
     path('api/upload/', views.api_upload_attachment, name='chat_upload_attachment'),
+    path('api/register/', views.api_register, name='chat_register'),
 ]

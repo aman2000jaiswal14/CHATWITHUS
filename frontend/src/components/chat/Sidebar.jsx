@@ -27,7 +27,8 @@ const Sidebar = ({ onSelectChat }) => {
 
     const config = window.CHAT_CONFIG || {};
     const currentUser = config.USER_ID || 'anonymous';
-    const myStatus = presence[currentUser] ?? 0;
+    const myPresence = presence[currentUser.toLowerCase()] || { status: 0, is_online: true };
+    const myStatus = typeof myPresence === 'object' ? myPresence.status : myPresence;
     const currentStatusObj = STATUS_OPTIONS.find(s => s.value === myStatus) || STATUS_OPTIONS[0];
 
     const getStatusColor = (username) => {
@@ -83,15 +84,15 @@ const Sidebar = ({ onSelectChat }) => {
     const filteredBookmarks = bookmarks.filter(b =>
         b.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (b.name && b.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    ).sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0));
 
     const filteredGroups = groups.filter(g =>
         g.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    ).sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0));
 
     const filteredUnverified = unverified.filter(u =>
         u.username.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    ).sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0));
 
     const groupUnread = filteredGroups.reduce((sum, g) => sum + (unreadCounts[String(g.id).toLowerCase()] || 0), 0);
     const contactUnread = filteredBookmarks.reduce((sum, c) => sum + (unreadCounts[c.username.toLowerCase()] || 0), 0);
@@ -133,7 +134,14 @@ const Sidebar = ({ onSelectChat }) => {
                     <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0f172a] ${getStatusColor(contact.username)}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{contact.name}</p>
+                    <div className="flex items-center gap-1.5 truncate">
+                        <p className="text-sm font-medium truncate">{contact.name}</p>
+                        {contact.role && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">
+                                {contact.role}
+                            </span>
+                        )}
+                    </div>
                     <p className="text-[10px] text-slate-500 truncate">@{contact.username} · {getStatusLabel(contact.username)}</p>
                 </div>
                 {unreadCounts[cid] > 0 && (
@@ -156,8 +164,19 @@ const Sidebar = ({ onSelectChat }) => {
                 <ShieldQuestion className="w-4 h-4 text-amber-400" />
             </div>
             <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{contact.name}</p>
-                <p className="text-[10px] text-slate-500">@{contact.username}</p>
+                <div className="flex items-center gap-1.5 truncate">
+                    <p className="text-sm font-medium truncate">{contact.name}</p>
+                    {contact.role && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-[9px] font-bold text-amber-500 uppercase tracking-tighter">
+                            {contact.role}
+                        </span>
+                    )}
+                </div>
+                <p className="text-[10px] text-amber-500/70 truncate flex items-center gap-1">
+                    <span>@{contact.username}</span>
+                    <span className="w-1 h-1 rounded-full bg-amber-500/30" />
+                    <span>Click to verify</span>
+                </p>
             </div>
             <button onClick={(e) => handleVerify(e, contact.username)}
                 className="p-1.5 text-emerald-400 hover:bg-emerald-900/30 rounded-lg transition-colors" title="Accept">
@@ -286,43 +305,40 @@ const Sidebar = ({ onSelectChat }) => {
 
             {/* Content area */}
             <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
-                {showGroups && filteredGroups.length > 0 && (
+                {activeTab === 'all' ? (
                     <div className="space-y-1">
-                        {activeTab === 'all' && (
-                            <div className="flex items-center gap-2 mb-1.5 px-2">
-                                <Users className="w-3 h-3 text-emerald-500" />
-                                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Groups</h2>
-                                <span className="text-[9px] text-slate-600 ml-auto font-mono">{filteredGroups.length}</span>
+                        {[
+                            ...filteredGroups.map(g => ({ ...g, isGroup: true })),
+                            ...filteredBookmarks.map(b => ({ ...b, isGroup: false })),
+                            ...filteredUnverified.map(u => ({ ...u, isGroup: false, isUnverified: true }))
+                        ].sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0))
+                            .map(item => {
+                                if (item.isGroup) return renderGroupItem(item);
+                                if (item.isUnverified) return renderUnverifiedItem(item);
+                                return renderContactItem(item);
+                            })
+                        }
+                    </div>
+                ) : (
+                    <>
+                        {showGroups && filteredGroups.length > 0 && (
+                            <div className="space-y-1">
+                                {filteredGroups.map(renderGroupItem)}
                             </div>
                         )}
-                        {filteredGroups.map(renderGroupItem)}
-                    </div>
-                )}
 
-                {showContacts && filteredBookmarks.length > 0 && (
-                    <div className="space-y-1">
-                        {activeTab === 'all' && (
-                            <div className="flex items-center gap-2 mb-1.5 px-2">
-                                <User className="w-3 h-3 text-slate-400" />
-                                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Contacts</h2>
-                                <span className="text-[9px] text-slate-600 ml-auto font-mono">{filteredBookmarks.length}</span>
+                        {showContacts && filteredBookmarks.length > 0 && (
+                            <div className="space-y-1">
+                                {filteredBookmarks.map(renderContactItem)}
                             </div>
                         )}
-                        {filteredBookmarks.map(renderContactItem)}
-                    </div>
-                )}
 
-                {showUnverified && filteredUnverified.length > 0 && (
-                    <div className="space-y-1">
-                        {activeTab === 'all' && (
-                            <div className="flex items-center gap-2 mb-1.5 px-2">
-                                <ShieldQuestion className="w-3 h-3 text-amber-500" />
-                                <h2 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Unverified</h2>
-                                <span className="text-[9px] text-amber-600 ml-auto font-mono">{filteredUnverified.length}</span>
+                        {showUnverified && filteredUnverified.length > 0 && (
+                            <div className="space-y-1">
+                                {filteredUnverified.map(renderUnverifiedItem)}
                             </div>
                         )}
-                        {filteredUnverified.map(renderUnverifiedItem)}
-                    </div>
+                    </>
                 )}
 
                 {filteredBookmarks.length === 0 && filteredGroups.length === 0 && filteredUnverified.length === 0 && (

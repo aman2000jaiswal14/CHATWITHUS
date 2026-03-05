@@ -231,9 +231,19 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                 <div className="min-w-0 flex-1">
                     <span className="font-semibold tracking-wide uppercase text-sm block truncate">{chatName}</span>
                     {!isGroupChat && (
-                        <span className={`text-[10px] font-mono ${presence[activeChatId]?.is_online ? 'text-emerald-400' : 'text-slate-500'}`}>
-                            {presence[activeChatId]?.is_online ? 'ONLINE' : 'OFFLINE'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-mono ${presence[activeChatId]?.is_online ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                {presence[activeChatId]?.is_online ? 'ONLINE' : 'OFFLINE'}
+                            </span>
+                            {bookmarks.find(c => c.username === activeChatId)?.role && (
+                                <>
+                                    <span className="w-1 h-1 rounded-full bg-slate-700" />
+                                    <span className="text-[10px] text-slate-400 uppercase tracking-tighter font-semibold">
+                                        {bookmarks.find(c => c.username === activeChatId)?.role}
+                                    </span>
+                                </>
+                            )}
+                        </div>
                     )}
                 </div>
                 {isGroupChat && (
