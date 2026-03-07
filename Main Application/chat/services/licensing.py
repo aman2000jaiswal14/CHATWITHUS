@@ -46,15 +46,15 @@ class LicensingService:
                     elif ": " in line:
                         content_lines.append(line)
                         key, val = line.split(": ", 1)
-                        if key == "PRODUCT": license_data["product"] = val
-                        elif key == "PROJECT": license_data["project"] = val
-                        elif key == "VERSION": license_data["version"] = val
-                        elif key == "DESCRIPTION": license_data["description"] = val
-                        elif key == "COMPANY": license_data["customer"] = val
-                        elif key == "PROVIDED TO": license_data["provided_to"] = val
-                        elif key == "ISSUED": license_data["issued_at"] = val
-                        elif key == "VALID UNTIL": license_data["expires_at"] = val
-                        elif key == "LICENSE TYPE": license_data["type"] = val
+                        if key == "PRODUCT": license_data["PRODUCT"] = val
+                        elif key == "PROJECT": license_data["PROJECT"] = val
+                        elif key == "VERSION": license_data["VERSION"] = val
+                        elif key == "DESCRIPTION": license_data["DESCRIPTION"] = val
+                        elif key == "COMPANY": license_data["COMPANY"] = val
+                        elif key == "PROVIDED TO": license_data["PROVIDED TO"] = val
+                        elif key == "ISSUED": license_data["ISSUED"] = val
+                        elif key == "VALID UNTIL": license_data["VALID UNTIL"] = val
+                        elif key == "LICENSE TYPE": license_data["LICENSE TYPE"] = val
 
             if not signature_b64 or not license_data:
                 return {"error": "Incomplete license data"}
@@ -79,7 +79,7 @@ class LicensingService:
             )
 
             # Check Expiration
-            expiry = datetime.strptime(license_data["expires_at"], "%Y-%m-%d")
+            expiry = datetime.strptime(license_data["VALID UNTIL"], "%Y-%m-%d")
             # Set time for fair comparison
             if datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) > expiry:
                 return {"error": "License expired", "expired": True}

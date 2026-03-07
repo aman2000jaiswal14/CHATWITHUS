@@ -367,18 +367,11 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                         <Download className="w-4 h-4" />
                     </button>
 
-                    {isGroupChat ? (
+                    {isGroupChat && (
                         <button
                             onClick={() => setCurrentView('group_settings')}
                             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
                             title="Group Settings"
-                        >
-                            <Settings className="w-4 h-4" />
-                        </button>
-                    ) : (
-                        <button
-                            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
-                            title="Chat Settings"
                         >
                             <Settings className="w-4 h-4" />
                         </button>
