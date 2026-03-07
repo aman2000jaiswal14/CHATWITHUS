@@ -30,6 +30,7 @@ We have prepared a full suite of **16 specialized documents** in the [SWDOCS/](.
 | **Commercial** | [Commercial_Model.md](./SWDOCS/Commercial_Model.md) | Market strategy & Pricing (India vs. USA). |
 | **Performance** | [Scaling_Specifications.md](./SWDOCS/Scaling_Specifications.md) | Hardware math & Latency benchmarks. |
 | **Operational** | [Deployment_Guide.md](./SWDOCS/Deployment_Guide.md) / [Detailed_Manual](./SWDOCS/Detailed_Deployment_Manual.md) | Step-by-step production setup (Nginx/Systemd). |
+| **Containerization** | [Docker_Deployment_Guide.md](./SWDOCS/Docker_Deployment_Guide.md) | Docker & Docker Compose orchestration. |
 | **Developer** | [API_Reference.md](./SWDOCS/API_Reference.md) / [Integration_Guide.md](./SWDOCS/Integration_Guide.md) | Extension and platform integration. |
 | **Support** | [Troubleshooting_FAQ.md](./SWDOCS/Troubleshooting_FAQ.md) | Common issues & resolution steps. |
 
