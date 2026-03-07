@@ -8,6 +8,7 @@ const GroupMembers = ({ onBack }) => {
     const [members, setMembers] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const [allUsers, setAllUsers] = useState([]);
+    const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [showAddUser, setShowAddUser] = useState(false);
     const [removing, setRemoving] = useState(null);
@@ -82,6 +83,11 @@ const GroupMembers = ({ onBack }) => {
         setAdding(null);
     };
 
+    const filtered = allUsers.filter(u =>
+        u.name.toLowerCase().includes(search.toLowerCase()) ||
+        u.username.toLowerCase().includes(search.toLowerCase())
+    );
+
     return (
         <div className="w-full bg-[#0f172a] flex flex-col h-full text-white">
             <div className="h-12 border-b border-slate-800 flex items-center px-3 gap-2 flex-shrink-0">
@@ -137,12 +143,26 @@ const GroupMembers = ({ onBack }) => {
                 {/* Add user panel */}
                 {showAddUser && (
                     <>
-                        <div className="flex items-center justify-between py-1">
-                            <p className="text-[10px] text-slate-500 uppercase tracking-widest">Add New Members</p>
-                            <button onClick={() => setShowAddUser(false)} className="text-[10px] text-emerald-400 hover:underline">Done</button>
+                        <div className="flex flex-col gap-2 py-1">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest">Add New Members</p>
+                                <button onClick={() => { setShowAddUser(false); setSearch(''); }} className="text-[10px] text-emerald-400 hover:underline">Done</button>
+                            </div>
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search users..."
+                                className="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-2 py-1.5 text-xs placeholder-slate-500 outline-none focus:border-emerald-800"
+                                style={{ boxShadow: 'none' }}
+                                autoFocus
+                            />
                         </div>
                         {allUsers.length === 0 && <p className="text-xs text-slate-500 font-mono p-2">All users are already members</p>}
-                        {allUsers.map((user) => (
+                        {!loading && showAddUser && allUsers.length > 0 && filtered.length === 0 && (
+                            <p className="text-xs text-slate-500 font-mono p-2">No users found</p>
+                        )}
+                        {filtered.map((user) => (
                             <div key={user.username} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-800 transition-colors">
                                 <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
                                     <UserIcon className="w-4 h-4 text-slate-400" />

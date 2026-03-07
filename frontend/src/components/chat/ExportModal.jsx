@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Download, X, Calendar, FileText, Loader2 } from 'lucide-react';
+import JSZip from 'jszip';
+import encryptionService from '../../services/EncryptionService';
 
 const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
     const today = new Date().toISOString().split('T')[0];
@@ -7,6 +9,16 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
     const [dateTo, setDateTo] = useState(today);
     const [exporting, setExporting] = useState(false);
     const [includeAttachments, setIncludeAttachments] = useState(false);
+
+    const getFullUrl = (url) => {
+        if (!url) return '';
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+        const config = window.CHAT_CONFIG || {};
+        const base = config.API_BASE_URL || '';
+        const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+        const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+        return `${cleanBase}${cleanUrl}`;
+    };
 
     const handleExport = async () => {
         setExporting(true);
@@ -16,6 +28,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                 from: dateFrom,
                 to: dateTo,
                 include_attachments: String(includeAttachments),
+                format: 'json',
             });
             const config = window.CHAT_CONFIG || {};
             const baseUrl = config.API_BASE_URL || '';
@@ -35,16 +48,114 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                 return;
             }
 
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const extension = includeAttachments ? 'zip' : 'txt';
-            a.download = `chat_export_${chatId}_${dateFrom || 'all'}_${dateTo || 'now'}.${extension}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const data = await response.json();
+            const messages = data.messages || [];
+
+            // 1. Decrypt each message locally
+            const decryptedMessages = await Promise.all(messages.map(async (m) => {
+                let content = '';
+                if (m.payload) {
+                    try {
+                        const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                        const e2eeCiphertext = new TextDecoder().decode(bytes);
+                        content = await encryptionService.decrypt(e2eeCiphertext);
+                    } catch (e) {
+                        try {
+                            const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                            content = new TextDecoder().decode(bytes);
+                        } catch (e2) {
+                            content = m.payload;
+                        }
+                    }
+                }
+                return { ...m, content };
+            }));
+
+            // 2. Build text content locally
+            const lines = [];
+            lines.push("═══════════════════════════════════════");
+            lines.push(`  CHAT EXPORT — ${data.chat_label || chatName}`);
+            lines.push(`  Exported by: ${config.USER_ID || 'anonymous'}`);
+            if (dateFrom || dateTo) {
+                lines.push(`  Date Range: ${dateFrom || 'beginning'} → ${dateTo || 'now'}`);
+            }
+            lines.push(`  Total Messages: ${decryptedMessages.length}`);
+            lines.push("═══════════════════════════════════════");
+            lines.push("");
+
+            decryptedMessages.forEach((msg) => {
+                const ts = new Date(msg.sentAt).toLocaleString();
+                let line = `[${ts}] ${msg.senderId}: ${msg.content}`;
+                if (msg.attachment) {
+                    // Only show attachment name as requested
+                    line += ` [Attachment: ${msg.attachment.name}]`;
+                }
+                lines.push(line);
+            });
+
+            lines.push("");
+            lines.push("═══ END OF EXPORT ═══");
+
+            const finalLog = lines.join('\n');
+            const logName = `chat_log_${chatId}.txt`;
+
+            if (includeAttachments && decryptedMessages.some(m => m.attachment)) {
+                // Export as ZIP
+                const zip = new JSZip();
+                zip.file(logName, finalLog);
+
+                const attFolder = zip.folder("attachments");
+
+                // Track filenames to avoid collisions
+                const nameCount = {};
+
+                for (const msg of decryptedMessages) {
+                    if (msg.attachment && msg.attachment.url) {
+                        try {
+                            const fileUrl = getFullUrl(msg.attachment.url);
+                            const resp = await fetch(fileUrl);
+                            const buffer = await resp.arrayBuffer();
+                            const decrypted = await encryptionService.decryptBuffer(buffer);
+
+                            let fileName = msg.attachment.name || 'file';
+                            if (nameCount[fileName]) {
+                                const extIndex = fileName.lastIndexOf('.');
+                                const base = extIndex !== -1 ? fileName.slice(0, extIndex) : fileName;
+                                const ext = extIndex !== -1 ? fileName.slice(extIndex) : '';
+                                fileName = `${base}_${nameCount[fileName]}${ext}`;
+                                nameCount[msg.attachment.name]++;
+                            } else {
+                                nameCount[fileName] = 1;
+                            }
+
+                            attFolder.file(fileName, decrypted);
+                        } catch (err) {
+                            console.error(`Failed to include attachment ${msg.attachment.name}:`, err);
+                        }
+                    }
+                }
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `chat_export_${chatId}_${dateFrom || 'all'}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                // Export as TXT
+                const blob = new Blob([finalLog], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `chat_export_${chatId}_${dateFrom || 'all'}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
             onClose();
         } catch (err) {
             console.error('Export error:', err);
@@ -115,7 +226,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                             className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-[#0f172a]"
                         />
                         <label htmlFor="include-attachments" className="text-xs text-slate-400 cursor-pointer select-none">
-                            Include Attachment Links
+                            Include Attachment
                         </label>
                     </div>
                 </div>

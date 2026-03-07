@@ -213,7 +213,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def save_message_to_db(self, message):
         """Persist a protobuf ChatMessage to the database."""
         from django.contrib.auth import get_user_model
-        from .models import Message as DBMessage, ChatGroup
+        from .models import Message as DBMessage, ChatGroup, MessageAttachment
         User = get_user_model()
 
         try:
@@ -233,12 +233,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     )
                     # Handle attachment
                     if message.HasField('attachment'):
-                        from .models import MessageAttachment
                         MessageAttachment.objects.get_or_create(
                             message=db_message,
-                            file_name=message.attachment.name,
                             defaults={
-                                'file': message.attachment.url.replace('/media/', ''), # Strip media prefix for storage
+                                'file_name': message.attachment.name,
+                                'file': message.attachment.url.replace('/media/', ''),
                                 'file_type': message.attachment.type,
                                 'file_size': message.attachment.size,
                             }
@@ -258,12 +257,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     )
                     # Handle attachment
                     if message.HasField('attachment'):
-                        from .models import MessageAttachment
                         MessageAttachment.objects.get_or_create(
                             message=db_message,
-                            file_name=message.attachment.name,
                             defaults={
-                                'file': message.attachment.url.replace('/media/', ''), # Strip media prefix for storage
+                                'file_name': message.attachment.name,
+                                'file': message.attachment.url.replace('/media/', ''),
                                 'file_type': message.attachment.type,
                                 'file_size': message.attachment.size,
                             }

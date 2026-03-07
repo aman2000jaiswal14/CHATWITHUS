@@ -1,8 +1,99 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
+import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
 import { markRead, uploadAttachment } from '../../services/api';
+import encryptionService from '../../services/EncryptionService';
+
+const getFullUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+    const config = window.CHAT_CONFIG || {};
+    const base = config.API_BASE_URL || '';
+    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+    return `${cleanBase}${cleanUrl}`;
+};
+
+const DecryptedImage = ({ url, alt }) => {
+    const [decryptedUrl, setDecryptedUrl] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        let isMounted = true;
+        const decryptAndShow = async () => {
+            try {
+                const response = await fetch(url);
+                const buffer = await response.arrayBuffer();
+                const decrypted = await encryptionService.decryptBuffer(buffer);
+                const blob = new Blob([decrypted]);
+                const localUrl = URL.createObjectURL(blob);
+                if (isMounted) setDecryptedUrl(localUrl);
+            } catch (err) {
+                console.error("Image decryption failed:", err);
+                if (isMounted) setDecryptedUrl(url); // Fallback to raw URL
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+        decryptAndShow();
+        return () => {
+            isMounted = false;
+            if (decryptedUrl && decryptedUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(decryptedUrl);
+            }
+        };
+    }, [url]);
+
+    if (loading) return <div className="w-full h-32 bg-slate-800 animate-pulse flex items-center justify-center text-[10px] text-slate-500 font-mono">DECRYPTING...</div>;
+    return <img src={decryptedUrl} alt={alt} className="w-full h-auto block cursor-pointer" onClick={() => window.open(decryptedUrl, '_blank')} />;
+};
+
+const DecryptedFile = ({ url, name, size }) => {
+    const [decrypting, setDecrypting] = React.useState(false);
+
+    const handleDownload = async () => {
+        setDecrypting(true);
+        try {
+            const response = await fetch(url);
+            const buffer = await response.arrayBuffer();
+            const decrypted = await encryptionService.decryptBuffer(buffer);
+            const blob = new Blob([decrypted]);
+            const localUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = localUrl;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(localUrl);
+        } catch (err) {
+            console.error("File decryption failed:", err);
+            window.open(url, '_blank'); // Fallback
+        } finally {
+            setDecrypting(false);
+        }
+    };
+
+    return (
+        <div className="mt-2 flex items-center gap-3 p-2 rounded-lg border border-slate-700 bg-slate-800/50 group hover:bg-slate-800 transition-colors">
+            <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-500">
+                <FileText size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-slate-200 truncate">{name}</p>
+                <p className="text-[10px] text-slate-500">{(size / 1024).toFixed(1)} KB</p>
+            </div>
+            <button
+                onClick={handleDownload}
+                disabled={decrypting}
+                className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors disabled:opacity-50"
+            >
+                {decrypting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            </button>
+        </div>
+    );
+};
 
 const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread = 0 }) => {
     const [inputText, setInputText] = useState('');
@@ -15,15 +106,6 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
 
     const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence } = useChatStore();
 
-    const getFullUrl = (url) => {
-        if (!url) return '';
-        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
-        const config = window.CHAT_CONFIG || {};
-        const base = config.API_BASE_URL || '';
-        const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-        const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-        return `${cleanBase}${cleanUrl}`;
-    };
     const scrollRef = useRef(null);
     const [unreadStartIdx, setUnreadStartIdx] = useState(null);
     const [showExport, setShowExport] = useState(false);
@@ -53,12 +135,32 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                 }
             })
                 .then(res => res.json())
-                .then(data => {
+                .then(async data => {
                     if (data.messages) {
-                        const processed = data.messages.map(m => ({
-                            ...m,
-                            payload: m.payload ? new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16))) : null,
-                            attachment: m.attachment
+                        const processed = await Promise.all(data.messages.map(async m => {
+                            let content = '';
+                            if (m.payload) {
+                                try {
+                                    // Step 1: Hex decode to string (removes at-rest layer done by backend)
+                                    const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                                    const e2eeCiphertext = new TextDecoder().decode(bytes);
+                                    // Step 2: Decrypt E2EE layer
+                                    content = await encryptionService.decrypt(e2eeCiphertext);
+                                } catch (e) {
+                                    // Fallback: payload might be unencrypted plaintext
+                                    try {
+                                        const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                                        content = new TextDecoder().decode(bytes);
+                                    } catch (e2) {
+                                        content = m.payload;
+                                    }
+                                }
+                            }
+                            return {
+                                ...m,
+                                content: content,
+                                attachment: m.attachment
+                            };
                         }));
                         setMessages(activeChatId, processed);
 
@@ -105,10 +207,28 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         const file = e.target.files[0];
         if (!file) return;
 
+        // 50MB limit check
+        const MAX_SIZE = 50 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            alert('File is too large. Maximum size is 50MB.');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
         setIsUploading(true);
         try {
-            const result = await uploadAttachment(file);
-            setPendingAttachment(result);
+            // Read file as ArrayBuffer
+            const buffer = await file.arrayBuffer();
+            // Encrypt buffer
+            const encryptedBuffer = await encryptionService.encryptBuffer(buffer);
+            // Create encrypted file object
+            const encryptedFile = new File([encryptedBuffer], file.name, { type: file.type });
+
+            const result = await uploadAttachment(encryptedFile);
+            setPendingAttachment({
+                ...result,
+                isEncrypted: true // Mark as encrypted for later decryption
+            });
         } catch (err) {
             alert('Failed to upload file');
         } finally {
@@ -160,6 +280,7 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         ).slice(0, 5);
     })();
 
+
     const renderAttachment = (att) => {
         if (!att || !att.url) return null;
         const isImage = att.type?.startsWith('image/');
@@ -168,31 +289,12 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         if (isImage) {
             return (
                 <div className="mt-2 rounded-lg overflow-hidden border border-slate-700 bg-slate-800 max-w-sm">
-                    <img src={absoluteUrl} alt={att.name} className="w-full h-auto block cursor-pointer" onClick={() => window.open(absoluteUrl, '_blank')} />
+                    <DecryptedImage url={absoluteUrl} alt={att.name} />
                 </div>
             );
         }
 
-        return (
-            <div className="mt-2 flex items-center gap-3 p-2 rounded-lg border border-slate-700 bg-slate-800/50 group hover:bg-slate-800 transition-colors">
-                <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-500">
-                    <FileText size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-200 truncate">{att.name}</p>
-                    <p className="text-[10px] text-slate-500">{(att.size / 1024).toFixed(1)} KB</p>
-                </div>
-                <a
-                    href={absoluteUrl}
-                    download={att.name}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors"
-                >
-                    <Download size={14} />
-                </a>
-            </div>
-        );
+        return <DecryptedFile url={absoluteUrl} name={att.name} size={att.size} />;
     };
 
     const formatTime = (timestamp) => {
@@ -301,7 +403,7 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                                 <div className="flex items-center justify-center w-full my-3">
                                     <div className="bg-slate-800/40 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-700/10 transition-all duration-300">
                                         <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider font-mono">
-                                            {msg.payload ? new TextDecoder().decode(msg.payload) : ''}
+                                            {msg.content || ''}
                                         </span>
                                     </div>
                                 </div>
@@ -320,7 +422,7 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                                                     ? 'bg-emerald-900/20 border-emerald-700 text-slate-100'
                                                     : 'bg-[#1e293b] border-slate-700 text-slate-200'
                                         }`}>
-                                        {msg.type === 0 && <p className="break-words">{renderContentWithMentions(msg.payload ? new TextDecoder().decode(msg.payload) : '')}</p>}
+                                        {msg.type === 0 && <p className="break-words">{renderContentWithMentions(msg.content || '')}</p>}
                                         {renderAttachment(msg.attachment)}
                                         {msg.type === 1 && (
                                             <div className="flex items-center gap-2">

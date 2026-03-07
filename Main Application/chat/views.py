@@ -476,7 +476,7 @@ def api_chat_history(request, chat_id):
             'targetId': chat_id,
             'isGroupMessage': is_group,
             'type': msg.message_type,
-            'payload': msg.content.encode('utf-8').hex(),
+            'payload': msg.decrypted_content.encode('utf-8').hex(),
             'sentAt': int(msg.timestamp.timestamp() * 1000)
         }
         
@@ -485,8 +485,8 @@ def api_chat_history(request, chat_id):
         if att:
             msg_dict['attachment'] = {
                 'id': str(att.id),
-                'name': att.file_name,
-                'type': att.file_type,
+                'name': att.decrypted_file_name,
+                'type': att.decrypted_file_type,
                 'url': att.file.url,
                 'size': att.file_size,
             }
@@ -571,6 +571,32 @@ def api_export_messages(request, chat_id):
 
     messages = messages.order_by('timestamp')
 
+    format_type = request.GET.get('format', 'text')
+    if format_type == 'json':
+        data = []
+        for msg in messages:
+            msg_dict = {
+                'messageId': msg.message_id,
+                'senderId': msg.sender.username,
+                'targetId': chat_id,
+                'isGroupMessage': is_group,
+                'type': msg.message_type,
+                'payload': msg.decrypted_content.encode('utf-8').hex(),
+                'sentAt': int(msg.timestamp.timestamp() * 1000)
+            }
+            if include_attachments:
+                att = msg.attachments.first()
+                if att:
+                    msg_dict['attachment'] = {
+                        'id': str(att.id),
+                        'name': att.decrypted_file_name,
+                        'type': att.decrypted_file_type,
+                        'url': att.file.url,
+                        'size': att.file_size,
+                    }
+            data.append(msg_dict)
+        return JsonResponse({'messages': data, 'chat_label': chat_label})
+
     # Build text content
     lines = []
     lines.append(f"═══════════════════════════════════════")
@@ -586,7 +612,7 @@ def api_export_messages(request, chat_id):
 
     for msg in messages:
         ts = msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-        line = f"[{ts}] {msg.sender.username}: {msg.content}"
+        line = f"[{ts}] {msg.sender.username}: {msg.decrypted_content}"
         
         if include_attachments:
             for att in msg.attachments.all():

@@ -82,14 +82,7 @@ function App() {
   const handleSendMessage = (text, attachment = null) => {
     if (!activeChatId) return;
     const wsClient = WebSocketClient.getInstance();
-    const payload = {
-      messageId: `m${Date.now()}`,
-      type: 0,
-      payload: new TextEncoder().encode(text),
-      sentAt: Date.now(),
-      isHighPriority: false
-    };
-    wsClient.sendMessage(activeChatId, isGroupChat, payload, attachment);
+    wsClient.sendMessage(activeChatId, text, isGroupChat, 0, attachment);
   };
 
   const activeMessages = activeChatId ? (messagesByChat[activeChatId] || []) : [];

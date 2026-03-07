@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from .services.encryption import encryption_service
 
 
 class Bookmark(models.Model):
@@ -69,7 +70,7 @@ class Message(models.Model):
         related_name='messages',
         null=True, blank=True
     )
-    content = models.TextField()
+    content = models.TextField()  # Encrypted at rest
     message_type = models.IntegerField(default=0)  # 0: Text, 1: Audio, 2: Override, 4: System
     message_id = models.CharField(max_length=100, unique=True)
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -77,9 +78,23 @@ class Message(models.Model):
     class Meta:
         ordering = ['timestamp']
 
+    @property
+    def decrypted_content(self):
+        """Returns the decrypted content of the message."""
+        return encryption_service.decrypt_payload(self.content)
+
+    def save(self, *args, **kwargs):
+        if self.content and not self.content.startswith('[Decryption Error'):
+            self.content = encryption_service.encrypt_payload(self.content)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         target = self.group.name if self.group else (self.recipient.username if self.recipient else '?')
-        return f"{self.sender.username} → {target}: {self.content[:30]}"
+        try:
+            display_content = self.decrypted_content[:30]
+        except:
+            display_content = "[Encrypted Content]"
+        return f"{self.sender.username} → {target}: {display_content}"
 
 
 class UserStatus(models.Model):
@@ -129,10 +144,25 @@ class MessageAttachment(models.Model):
         related_name='attachments'
     )
     file = models.FileField(upload_to='chat_attachments/%Y/%m/%d/')
-    file_name = models.CharField(max_length=255)
-    file_type = models.CharField(max_length=100)
+    file_name = models.CharField(max_length=500)  # Increased for encrypted string
+    file_type = models.CharField(max_length=500)  # Increased for encrypted string
     file_size = models.IntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def decrypted_file_name(self):
+        return encryption_service.decrypt_payload(self.file_name)
+
+    @property
+    def decrypted_file_type(self):
+        return encryption_service.decrypt_payload(self.file_type)
+
+    def save(self, *args, **kwargs):
+        if self.file_name and not self.file_name.startswith('[Decryption Error'):
+            self.file_name = encryption_service.encrypt_payload(self.file_name)
+        if self.file_type and not self.file_type.startswith('[Decryption Error'):
+            self.file_type = encryption_service.encrypt_payload(self.file_type)
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Attachment for {self.message.message_id}: {self.file_name}"
+        return f"Attachment for {self.message.message_id}: {self.decrypted_file_name}"
