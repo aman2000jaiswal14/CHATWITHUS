@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
 import { markRead, uploadAttachment } from '../../services/api';
@@ -45,8 +45,30 @@ const DecryptedImage = ({ url, alt }) => {
         };
     }, [url]);
 
+    const handleDownload = (e) => {
+        e.stopPropagation();
+        if (!decryptedUrl) return;
+        const a = document.createElement('a');
+        a.href = decryptedUrl;
+        a.download = alt || 'image.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
     if (loading) return <div className="w-full h-32 bg-slate-800 animate-pulse flex items-center justify-center text-[10px] text-slate-500 font-mono">DECRYPTING...</div>;
-    return <img src={decryptedUrl} alt={alt} className="w-full h-auto block cursor-pointer" onClick={() => window.open(decryptedUrl, '_blank')} />;
+    return (
+        <div className="relative group/img cursor-pointer" onClick={() => window.open(decryptedUrl, '_blank')}>
+            <img src={decryptedUrl} alt={alt} className="w-full h-auto block" />
+            <button
+                onClick={handleDownload}
+                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity backdrop-blur-sm"
+                title="Download"
+            >
+                <Download size={14} />
+            </button>
+        </div>
+    );
 };
 
 const DecryptedFile = ({ url, name, size }) => {
@@ -95,6 +117,168 @@ const DecryptedFile = ({ url, name, size }) => {
     );
 };
 
+const DecryptedAudio = ({ url, name }) => {
+    const [decryptedUrl, setDecryptedUrl] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+    const [isPlaying, setIsPlaying] = React.useState(false);
+    const [progress, setProgress] = React.useState(0);
+    const [duration, setDuration] = React.useState(0);
+    const [currentTime, setCurrentTime] = React.useState(0);
+    const [playbackSpeed, setPlaybackSpeed] = React.useState(1);
+    const audioRef = React.useRef(null);
+
+    React.useEffect(() => {
+        let isMounted = true;
+        const decryptAndShow = async () => {
+            try {
+                const response = await fetch(url);
+                const buffer = await response.arrayBuffer();
+                const decrypted = await encryptionService.decryptBuffer(buffer);
+                const blob = new Blob([decrypted], { type: 'audio/webm' });
+                const localUrl = URL.createObjectURL(blob);
+                if (isMounted) setDecryptedUrl(localUrl);
+            } catch (err) {
+                console.error("Audio decryption failed:", err);
+                if (isMounted) setDecryptedUrl(url); // Fallback to raw URL
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+        decryptAndShow();
+        return () => {
+            isMounted = false;
+            if (decryptedUrl && decryptedUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(decryptedUrl);
+            }
+        };
+    }, [url]);
+
+    const togglePlay = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play();
+        }
+        setIsPlaying(!isPlaying);
+    };
+
+    const toggleSpeed = () => {
+        if (!audioRef.current) return;
+        let nextSpeed = playbackSpeed === 1 ? 1.5 : playbackSpeed === 1.5 ? 2 : 1;
+        audioRef.current.playbackRate = nextSpeed;
+        setPlaybackSpeed(nextSpeed);
+    };
+
+    const handleDownload = () => {
+        if (!decryptedUrl) return;
+        const a = document.createElement('a');
+        a.href = decryptedUrl;
+        a.download = name || 'voice_message.webm';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    const handleTimeUpdate = () => {
+        if (!audioRef.current) return;
+        const current = audioRef.current.currentTime;
+        // Sometimes duration is infinity or NaN until loaded, grab from state if valid
+        const total = isFinite(audioRef.current.duration) ? audioRef.current.duration : 0;
+        setCurrentTime(current);
+        if (total > 0) {
+            setProgress((current / total) * 100);
+            setDuration(total);
+        }
+    };
+
+    const handleEnded = () => {
+        setIsPlaying(false);
+        setProgress(0);
+        setCurrentTime(0);
+    };
+
+    const handleSeek = (e) => {
+        if (!audioRef.current || !duration) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        audioRef.current.currentTime = percent * duration;
+    };
+
+    const formatTime = (time) => {
+        if (!time || isNaN(time) || !isFinite(time)) return "0:00";
+        const mins = Math.floor(time / 60);
+        const secs = Math.floor(time % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center gap-3 p-1 h-12 w-64">
+                <div className="w-8 h-8 rounded-full bg-slate-700/50 flex items-center justify-center flex-shrink-0">
+                    <Loader2 size={14} className="text-emerald-500 animate-spin" />
+                </div>
+                <div className="flex-1 flex flex-col gap-1.5 pr-3">
+                    <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-slate-600 rounded-full w-1/3 animate-pulse" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center gap-2 p-1 w-64 group/audio">
+            <audio
+                ref={audioRef}
+                src={decryptedUrl}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleEnded}
+                onLoadedMetadata={handleTimeUpdate}
+                className="hidden"
+            />
+            <button
+                onClick={togglePlay}
+                className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/30 hover:scale-105 active:scale-95 transition-all flex-shrink-0"
+                aria-label={isPlaying ? "Pause" : "Play"}
+            >
+                {isPlaying ? <Pause size={14} className="fill-current" /> : <Play size={14} className="fill-current ml-0.5" />}
+            </button>
+            <div className="flex-1 flex flex-col gap-1 pr-1">
+                <div
+                    className="h-1.5 w-full bg-slate-700/80 rounded-full cursor-pointer overflow-hidden flex items-center group/scrub"
+                    onClick={handleSeek}
+                >
+                    <div
+                        className="h-full bg-emerald-400 transition-all duration-75 relative"
+                        style={{ width: `${Math.max(2, progress)}%` }} // Minimum width so it's visible
+                    />
+                </div>
+                <div className="flex justify-between items-center text-[9px] font-mono text-slate-400">
+                    <span>{formatTime(currentTime)}</span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={toggleSpeed}
+                            className="hover:text-emerald-400 transition-colors bg-slate-800 px-1 rounded"
+                            title="Playback Speed"
+                        >
+                            {playbackSpeed}x
+                        </button>
+                        <span>{formatTime(duration)}</span>
+                    </div>
+                </div>
+            </div>
+            <button
+                onClick={handleDownload}
+                className="p-1 px-1.5 text-slate-500 hover:text-emerald-400 opacity-0 group-hover/audio:opacity-100 transition-opacity"
+                title="Download"
+            >
+                <Download size={14} />
+            </button>
+        </div>
+    );
+};
+
 const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread = 0 }) => {
     const [inputText, setInputText] = useState('');
     const [isRecording, setIsRecording] = useState(false);
@@ -103,6 +287,10 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
     const [mentionQuery, setMentionQuery] = useState(null);
     const [selectedMentionIdx, setSelectedMentionIdx] = useState(0);
     const fileInputRef = useRef(null);
+
+    // Voice recording refs
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
 
     const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence } = useChatStore();
 
@@ -237,6 +425,66 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         }
     };
 
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            audioChunksRef.current = [];
+
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                // Stop tracks to release microphone
+                stream.getTracks().forEach((track) => track.stop());
+
+                if (audioBlob.size < 1000) return; // Ignore empty/accidental clicks
+
+                setIsUploading(true);
+                try {
+                    const buffer = await audioBlob.arrayBuffer();
+                    const encryptedBuffer = await encryptionService.encryptBuffer(buffer);
+
+                    const fileName = `voice_message_${Date.now()}.webm`;
+                    const encryptedFile = new File([encryptedBuffer], fileName, { type: 'audio/webm' });
+
+                    const attachmentResult = await uploadAttachment(encryptedFile);
+
+                    // Immediately send the audio message with type PTT. Use empty text so it doesn't show "[Voice Message]".
+                    onSendMessage('', {
+                        id: attachmentResult.id,
+                        name: attachmentResult.name,
+                        type: attachmentResult.type,
+                        url: attachmentResult.url,
+                        size: attachmentResult.size
+                    });
+                } catch (err) {
+                    console.error("Voice message upload failed:", err);
+                    alert("Failed to send voice message");
+                } finally {
+                    setIsUploading(false);
+                }
+            };
+
+            mediaRecorderRef.current.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Microphone access denied or error:", err);
+            alert("Could not access microphone.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+    };
+
     const handleInputChanges = (e) => {
         const val = e.target.value;
         setInputText(val);
@@ -284,6 +532,7 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
     const renderAttachment = (att) => {
         if (!att || !att.url) return null;
         const isImage = att.type?.startsWith('image/');
+        const isAudio = att.type?.startsWith('audio/');
         const absoluteUrl = getFullUrl(att.url);
 
         if (isImage) {
@@ -292,6 +541,10 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                     <DecryptedImage url={absoluteUrl} alt={att.name} />
                 </div>
             );
+        }
+
+        if (isAudio) {
+            return <DecryptedAudio url={absoluteUrl} name={att.name} />;
         }
 
         return <DecryptedFile url={absoluteUrl} name={att.name} size={att.size} />;
@@ -417,23 +670,19 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                                         <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : 'text-emerald-500'}`}>{isOwn ? 'ME' : msg.senderId}</span>
                                         <span className="text-[9px] text-slate-600 font-mono">{formatTime(msg.sentAt)}</span>
                                     </div>
-                                    <div className={`px-3 py-2 rounded-lg text-sm shadow-sm border transition-all duration-300
+                                    <div className={`px-3 py-2 rounded-lg text-sm transition-all duration-300
                                         ${isUnread
-                                            ? 'bg-amber-900/20 border-amber-500/40 text-amber-50 ring-1 ring-amber-500/30'
+                                            ? 'bg-amber-900/20 border border-amber-500/40 text-amber-50 ring-1 ring-amber-500/30'
                                             : msg.isHighPriority
-                                                ? 'bg-red-900/50 border-red-500 text-red-100'
-                                                : isOwn
-                                                    ? 'bg-emerald-900/20 border-emerald-700 text-slate-100'
-                                                    : 'bg-[#1e293b] border-slate-700 text-slate-200'
+                                                ? 'bg-red-900/50 border border-red-500 text-red-100'
+                                                : msg.type === 1
+                                                    ? 'bg-transparent text-slate-200' // No border or background for native audio payloads
+                                                    : isOwn
+                                                        ? 'bg-emerald-900/20 border border-emerald-700 text-slate-100 shadow-sm'
+                                                        : 'bg-[#1e293b] border border-slate-700 text-slate-200 shadow-sm'
                                         }`}>
-                                        {msg.type === 0 && <p className="break-words">{renderContentWithMentions(msg.content || '')}</p>}
+                                        {(msg.type === 0 || msg.type === 1) && msg.content && <p className="break-words mb-1">{renderContentWithMentions(msg.content)}</p>}
                                         {renderAttachment(msg.attachment)}
-                                        {msg.type === 1 && (
-                                            <div className="flex items-center gap-2">
-                                                <Mic className="text-emerald-400 w-4 h-4" />
-                                                <span className="font-mono text-xs">BURST AUDIO [PTT]</span>
-                                            </div>
-                                        )}
                                         {msg.type === 2 && (
                                             <div className="flex items-center gap-2 font-bold uppercase text-red-400">
                                                 <ShieldAlert className="w-4 h-4" />
@@ -521,9 +770,11 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                         style={{ boxShadow: 'none' }}
                     />
                     <button
-                        onMouseDown={() => setIsRecording(true)}
-                        onMouseUp={() => setIsRecording(false)}
-                        onMouseLeave={() => setIsRecording(false)}
+                        onMouseDown={startRecording}
+                        onMouseUp={stopRecording}
+                        onMouseLeave={stopRecording}
+                        onTouchStart={startRecording}
+                        onTouchEnd={stopRecording}
                         className={`p-1.5 transition-colors rounded-md ${isRecording ? 'text-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white'}`}
                     >
                         <Mic className={`w-4 h-4 ${isRecording ? 'animate-pulse' : ''}`} />

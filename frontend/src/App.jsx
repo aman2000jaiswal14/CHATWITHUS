@@ -102,7 +102,14 @@ function App() {
   const handleSendMessage = (text, attachment = null) => {
     if (!activeChatId) return;
     const wsClient = WebSocketClient.getInstance();
-    wsClient.sendMessage(activeChatId, text, isGroupChat, 0, attachment);
+
+    // Auto-detect PTT message type enum (1) if it's an audio recording
+    let msgType = 0; // TEXT
+    if (attachment && attachment.type && attachment.type.startsWith('audio/')) {
+      msgType = 1; // PTT
+    }
+
+    wsClient.sendMessage(activeChatId, text, isGroupChat, msgType, attachment);
   };
 
   const activeMessages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
