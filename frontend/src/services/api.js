@@ -158,3 +158,19 @@ export async function uploadAttachment(file) {
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     return data;
 }
+
+export async function fetchMuteSettings() {
+    const res = await fetch(getUrl('/chat/api/settings/mute/'), { credentials: 'same-origin', headers: getHeaders('GET') });
+    if (!res.ok) throw res;
+    return res.json();
+}
+
+export async function updateMuteSettings(isMuted) {
+    const res = await fetch(getUrl('/chat/api/settings/mute/'), {
+        method: 'POST', credentials: 'same-origin',
+        headers: getHeaders('POST'),
+        body: JSON.stringify({ is_muted: isMuted }),
+    });
+    if (!res.ok) throw res;
+    return res.json();
+}

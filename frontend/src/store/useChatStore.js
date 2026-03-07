@@ -14,8 +14,10 @@ export const useChatStore = create((set, get) => ({
     fetchedChats: new Set(), // Track which chats have had history loaded
     lastOpenedUnread: 0,  // Snapshot of unread count when chat was opened
     isRegistered: true,
+    isMuted: true,
 
     setIsRegistered: (val) => set({ isRegistered: val }),
+    setIsMuted: (val) => set({ isMuted: val }),
 
     setActiveChat: (chatId, isGroup) => set((state) => {
         const lowerId = String(chatId).toLowerCase();

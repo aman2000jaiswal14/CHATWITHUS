@@ -104,6 +104,12 @@ class WebSocketClient {
 
                 useChatStore.getState().addMessage(chatId, msg);
 
+                const isMine = String(msg.senderId).toLowerCase() === String(this.userId).toLowerCase();
+                const isMuted = useChatStore.getState().isMuted;
+                if (!isMine && !isMuted) {
+                    this.playNotificationSound();
+                }
+
                 if (this.shouldRefresh(msg)) {
                     this.refreshData('new_chat');
                 }
@@ -116,6 +122,39 @@ class WebSocketClient {
             }
         } catch (err) {
             console.error('[WS] Failed to decode message', err);
+        }
+    }
+
+    playNotificationSound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+
+            // Subtle "pop" sound
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.05);
+
+            gainNode.gain.setValueAtTime(0, ctx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.1);
+
+            // Clean up context to avoid AudioContext limits across many plays
+            setTimeout(() => {
+                if (ctx.state !== 'closed') ctx.close();
+            }, 500);
+        } catch (e) {
+            console.error('Audio play failed', e);
         }
     }
 

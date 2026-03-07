@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useChatStore } from '../../store/useChatStore';
-import { User, MessageCircle, Users, UserPlus, PlusCircle, BookmarkMinus, ShieldCheck, ShieldQuestion, ChevronDown, X } from 'lucide-react';
-import { removeBookmark, verifyBookmark, setUserStatus } from '../../services/api';
+import { User, MessageCircle, Users, UserPlus, PlusCircle, BookmarkMinus, ShieldCheck, ShieldQuestion, ChevronDown, X, Bell, BellOff } from 'lucide-react';
+import { removeBookmark, verifyBookmark, setUserStatus, updateMuteSettings } from '../../services/api';
 import WebSocketClient from '../../services/WebSocketClient';
 
 const TABS = [
@@ -20,7 +20,7 @@ const STATUS_OPTIONS = [
 
 const Sidebar = ({ onSelectChat }) => {
     const { bookmarks, unverified, groups, presence, activeChatId, setCurrentView,
-        moveToUnverified, verifyContact, unreadCounts } = useChatStore();
+        moveToUnverified, verifyContact, unreadCounts, isMuted, setIsMuted } = useChatStore();
     const [activeTab, setActiveTab] = useState('all');
     const [showStatusPicker, setShowStatusPicker] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -194,6 +194,17 @@ const Sidebar = ({ onSelectChat }) => {
                     <h1 className="text-lg font-bold tracking-tight">CHAT WITH US</h1>
                 </div>
                 <div className="flex gap-1">
+                    <button
+                        onClick={async () => {
+                            const newStatus = !isMuted;
+                            setIsMuted(newStatus);
+                            await updateMuteSettings(newStatus);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors"
+                        title={isMuted ? "Unmute Notifications" : "Mute Notifications"}
+                    >
+                        {isMuted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4 text-emerald-400" />}
+                    </button>
                     <button onClick={() => setCurrentView('discover')}
                         className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors" title="Add Contact">
                         <UserPlus className="w-4 h-4" />

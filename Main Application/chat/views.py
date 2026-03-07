@@ -826,3 +826,25 @@ def api_register(request):
         return JsonResponse({'status': 'created', 'username': username})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+def api_mute_settings(request):
+    """Get or update the user's notification mute setting."""
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'unauthorized'}, status=401)
+    
+    if request.method == 'GET':
+        return JsonResponse({'is_muted': getattr(user, 'is_muted', True)})
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            # Default to True if not provided
+            is_muted = data.get('is_muted', True)
+            user.is_muted = is_muted
+            user.save()
+            return JsonResponse({'status': 'success', 'is_muted': user.is_muted})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    
+    return JsonResponse({'error': 'method not allowed'}, status=405)

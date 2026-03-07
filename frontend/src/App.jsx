@@ -8,13 +8,13 @@ import GroupSettings from './components/chat/GroupSettings';
 import Register from './components/chat/Register';
 import { useChatStore } from './store/useChatStore';
 import WebSocketClient from './services/WebSocketClient';
-import { fetchBookmarks, fetchGroups, fetchStatuses } from './services/api';
+import { fetchBookmarks, fetchGroups, fetchStatuses, fetchMuteSettings } from './services/api';
 import { ShieldAlert } from 'lucide-react';
 import LicensingService from './services/LicensingService';
 
 function App() {
   const { messagesByChat, activeChatId, isGroupChat, currentView, lastOpenedUnread,
-    isRegistered, setIsRegistered,
+    isRegistered, setIsRegistered, isMuted, setIsMuted,
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
@@ -79,6 +79,10 @@ function App() {
           updatePresence(userId, status);
         });
       });
+
+      fetchMuteSettings().then(data => {
+        setIsMuted(!!data.is_muted);
+      }).catch(err => console.error(err));
       return () => {
         wsClient.disconnect();
       };
