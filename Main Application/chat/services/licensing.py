@@ -55,6 +55,8 @@ class LicensingService:
                         elif key == "ISSUED": license_data["ISSUED"] = val
                         elif key == "VALID UNTIL": license_data["VALID UNTIL"] = val
                         elif key == "LICENSE TYPE": license_data["LICENSE TYPE"] = val
+                        elif key == "MODULES": license_data["MODULES"] = val
+                        elif key == "ALLOWED_CHARS": license_data["ALLOWED_CHARS"] = val
 
             if not signature_b64 or not license_data:
                 return {"error": "Incomplete license data"}

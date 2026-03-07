@@ -27,7 +27,8 @@ function App() {
   useEffect(() => {
     const rawLicense = config.LICENSE_INFO;
     LicensingService.verifyLicense(rawLicense).then(result => {
-      setLicenseState({ loading: false, valid: !!result.valid, error: result.error });
+      window.CWU_VERIFIED_MODULES = result.modules || [];
+      setLicenseState({ loading: false, valid: !!result.valid, ...result });
     });
   }, []); // Only run once on mount
 
@@ -170,6 +171,7 @@ function App() {
           onBack={handleBack}
           currentUser={currentUser}
           openedUnread={lastOpenedUnread}
+          license={licenseState}
         />
       )}
       {currentView === 'discover' && (

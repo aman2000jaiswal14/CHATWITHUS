@@ -18,7 +18,7 @@ def load_private_key():
             password=None
         )
 
-def generate_license_by_date(customer_name, expiry_date_str, license_type="PREMIUM", provided_to="ABC", project="ChatWithUs", version="1.0.0", description="ChatWithUs Enterprise License"):
+def generate_license_by_date(customer_name, expiry_date_str, license_type="PREMIUM", provided_to="ABC", project="ChatWithUs", version="1.0.0", description="ChatWithUs Enterprise License", modules="VOICE,MARKDOWN,E2E,NOTIFICATIONS", allowed_chars=r"^[A-Za-z0-9\s.,!?'\"@_\-+*~\\`]+$"):
     """Generate a signed license file with a specific expiry date."""
     if not os.path.exists(PRIVATE_KEY_PATH):
         print("[!] Private key not found. Please run license_generator.py first to generate keys.")
@@ -43,6 +43,8 @@ PROVIDED TO: {provided_to}
 ISSUED: {issued_at}
 VALID UNTIL: {expiry_date_str}
 LICENSE TYPE: {license_type}
+MODULES: {modules}
+ALLOWED_CHARS: {allowed_chars}
 """
     
     data_bytes = content.strip().encode('utf-8')
@@ -76,7 +78,7 @@ if __name__ == "__main__":
     # Adjust paths if run from root
     if not os.path.exists("CWU") and os.path.exists("private_key.pem"):
         PRIVATE_KEY_PATH = "private_key.pem"
-        LICENSE_FILE = "license.cwu"
+        LICENSE_FILE = "CWULicense.txt"
 
     if len(sys.argv) < 3:
         print("Usage: python3 CWU/generate_license_by_date.py <customer_name> <expiry_date_YYYY-MM-DD> [type] [provided_to] [project] [version] [description]")
@@ -89,5 +91,7 @@ if __name__ == "__main__":
         project = sys.argv[5] if len(sys.argv) > 5 else "ChatWithUs"
         version = sys.argv[6] if len(sys.argv) > 6 else "1.0.0"
         desc = sys.argv[7] if len(sys.argv) > 7 else "ChatWithUs Enterprise License"
+        modules = sys.argv[8] if len(sys.argv) > 8 else "VOICE,MARKDOWN,E2E,NOTIFICATIONS"
+        allowed_chars = sys.argv[9] if len(sys.argv) > 9 else r"^[A-Za-z0-9\s.,!?'\"@_\-+*~\\`]+$"
         
-        generate_license_by_date(name, date_str, ltype, provided, project, version, desc)
+        generate_license_by_date(name, date_str, ltype, provided, project, version, desc, modules, allowed_chars)

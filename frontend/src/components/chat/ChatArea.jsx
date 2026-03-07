@@ -279,7 +279,7 @@ const DecryptedAudio = ({ url, name }) => {
     );
 };
 
-const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread = 0 }) => {
+const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread = 0, license = {} }) => {
     const [inputText, setInputText] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -487,6 +487,17 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
 
     const handleInputChanges = (e) => {
         const val = e.target.value;
+
+        // Strictly enforce local character whitelist defined by License cryptography
+        if (license?.allowedChars && val.length > 0) {
+            try {
+                const regex = new RegExp(license.allowedChars);
+                if (!regex.test(val)) return; // Drop invalid keystrokes entirely
+            } catch (err) {
+                console.error("Invalid allowedChars regex from license", err);
+            }
+        }
+
         setInputText(val);
 
         const lastAtCharIdx = val.lastIndexOf('@');
@@ -739,7 +750,13 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                                                         ? 'bg-emerald-900/20 border border-emerald-700 text-slate-100 shadow-sm'
                                                         : 'bg-[#1e293b] border border-slate-700 text-slate-200 shadow-sm'
                                         }`}>
-                                        {(msg.type === 0 || msg.type === 1) && msg.content && <div className="break-words mb-1 overflow-x-hidden">{renderFormattedContent(msg.content)}</div>}
+                                        {(msg.type === 0 || msg.type === 1) && msg.content && (
+                                            <div className="break-words mb-1 overflow-x-hidden">
+                                                {(!license?.modules || license.modules.includes('MARKDOWN'))
+                                                    ? renderFormattedContent(msg.content)
+                                                    : <span>{msg.content}</span>}
+                                            </div>
+                                        )}
                                         {renderAttachment(msg.attachment)}
                                         {msg.type === 2 && (
                                             <div className="flex items-center gap-2 font-bold uppercase text-red-400">
@@ -827,16 +844,18 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                         className="flex-1 bg-transparent border-none outline-none text-sm placeholder-slate-500 px-2 focus:ring-0"
                         style={{ boxShadow: 'none' }}
                     />
-                    <button
-                        onMouseDown={startRecording}
-                        onMouseUp={stopRecording}
-                        onMouseLeave={stopRecording}
-                        onTouchStart={startRecording}
-                        onTouchEnd={stopRecording}
-                        className={`p-1.5 transition-colors rounded-md ${isRecording ? 'text-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white'}`}
-                    >
-                        <Mic className={`w-4 h-4 ${isRecording ? 'animate-pulse' : ''}`} />
-                    </button>
+                    {(!license?.modules || license.modules.includes('VOICE')) && (
+                        <button
+                            onMouseDown={startRecording}
+                            onMouseUp={stopRecording}
+                            onMouseLeave={stopRecording}
+                            onTouchStart={startRecording}
+                            onTouchEnd={stopRecording}
+                            className={`p-1.5 transition-colors rounded-md ${isRecording ? 'text-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            <Mic className={`w-4 h-4 ${isRecording ? 'animate-pulse' : ''}`} />
+                        </button>
+                    )}
                     <button
                         onClick={handleSend}
                         className="p-1.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 rounded-md transition-colors"

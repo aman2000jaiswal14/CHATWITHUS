@@ -30,8 +30,13 @@ class EncryptionService {
         );
     }
 
+    _isE2EEnabled() {
+        return window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('E2E');
+    }
+
     async encrypt(plaintext) {
         if (!plaintext) return "";
+        if (!this._isE2EEnabled()) return plaintext; // Bypass E2E if unlicensed
         try {
             const key = await this._deriveKey();
             const iv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -57,6 +62,7 @@ class EncryptionService {
 
     async decrypt(ciphertextBase64) {
         if (!ciphertextBase64) return "";
+        if (!this._isE2EEnabled()) return ciphertextBase64; // Bypass E2E if unlicensed
         try {
             const key = await this._deriveKey();
             const binary = atob(ciphertextBase64);
@@ -83,6 +89,7 @@ class EncryptionService {
 
     async encryptBuffer(buffer) {
         if (!buffer) return null;
+        if (!this._isE2EEnabled()) return buffer;
         try {
             const key = await this._deriveKey();
             const iv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -105,6 +112,7 @@ class EncryptionService {
 
     async decryptBuffer(buffer) {
         if (!buffer) return null;
+        if (!this._isE2EEnabled()) return buffer;
         try {
             const key = await this._deriveKey();
             const data = new Uint8Array(buffer);

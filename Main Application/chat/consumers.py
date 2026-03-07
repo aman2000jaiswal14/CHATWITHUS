@@ -4,7 +4,9 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .protocols import messages_pb2
 from .handlers.message_handler import MessageHandler
+from .services.licensing import LicensingService
 import time
+import re
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -13,10 +15,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.message_handler = MessageHandler()
         self.joined_groups = set()
         self.user_id = None
+        self.license_info = None
+
+    @database_sync_to_async
+    def fetch_license(self):
+        return LicensingService.get_license_info()
 
     async def connect(self):
         self.user_id = self.scope['url_route']['kwargs']['user_id']
         self.personal_group = f'user_{self.user_id}'
+        self.license_info = await self.fetch_license()
 
         await self.channel_layer.group_add(
             self.personal_group,
@@ -61,6 +69,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         if not is_member:
                             print(f"[AUTH ERROR] User {self.user_id} attempted to message group {message.target_id} without membership")
                             return
+
+                    # Skip Allowed Characters filtering on the backend because 
+                    # message.content is an End-To-End Encrypted Base64 ciphertext!
+                    # The strict constraints are enforced on the React Client locally before encryption.
 
                     message.received_at = int(time.time() * 1000)
 
