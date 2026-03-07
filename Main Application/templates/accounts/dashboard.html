@@ -54,7 +54,8 @@
         API_GROUP_CREATE_URL: "/chat/api/groups/create/",
         WS_URL: "ws://" + window.location.host + "/ws/chat/{{ user.username }}/",
         CSRF_TOKEN: "{{ csrf_token }}",
+        LICENSE_INFO: {{ CWU_LICENSE_JSON | safe }}
     };
 </script>
-<script src="{% static 'chat/widget.js' %}"></script>
+<script src="{% static 'chat/ChatWithUsWid.js' %}"></script>
 {% endblock %}

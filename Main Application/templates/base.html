@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Main Application{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
     <style>
         :root {
             --primary-color: #4f46e5;
@@ -202,11 +203,12 @@
         window.CHAT_CONFIG = {
             USER_ID: "{{ user.username }}",
             CSRF_TOKEN: "{{ csrf_token }}",
-            WS_URL: ((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws/chat/{{ user.username }}/"
+            WS_URL: ((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/ws/chat/{{ user.username }}/",
+            LICENSE_INFO: {{ CWU_LICENSE_JSON | safe }}
         };
     </script>
     <!-- Chat Widget Script -->
-    <script src="{% static 'chat/widget.js' %}"></script>
+    <script src="{% static 'chat/ChatWithUsWid.js' %}"></script>
     {% endif %}
 </body>
 

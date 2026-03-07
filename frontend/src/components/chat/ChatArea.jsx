@@ -348,8 +348,8 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                         </div>
                     )}
                 </div>
-                {isGroupChat && (
-                    <div className="flex gap-1">
+                <div className="flex gap-1 items-center">
+                    {isGroupChat && (
                         <button
                             onClick={() => setCurrentView('group_members')}
                             className="p-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-slate-800 rounded-md transition-colors"
@@ -357,22 +357,33 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                         >
                             <Users className="w-4 h-4" />
                         </button>
+                    )}
+
+                    <button
+                        onClick={() => setShowExport(true)}
+                        className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors"
+                        title="Export History"
+                    >
+                        <Download className="w-4 h-4" />
+                    </button>
+
+                    {isGroupChat ? (
                         <button
                             onClick={() => setCurrentView('group_settings')}
                             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
-                            title="Settings"
+                            title="Group Settings"
                         >
                             <Settings className="w-4 h-4" />
                         </button>
-                    </div>
-                )}
-                <button
-                    onClick={() => setShowExport(true)}
-                    className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors"
-                    title="Export Messages"
-                >
-                    <Download className="w-4 h-4" />
-                </button>
+                    ) : (
+                        <button
+                            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+                            title="Chat Settings"
+                        >
+                            <Settings className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Messages */}

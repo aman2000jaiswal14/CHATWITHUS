@@ -79,7 +79,7 @@ import os
 
 @app.route('/widget.js')
 def serve_widget():
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'widget.js')
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'ChatWithUsWid.js')
     
 @app.route("/dashboard")
 @login_required
@@ -93,6 +93,51 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
+
+import os
+import json
+import base64
+from datetime import datetime
+
+@app.context_processor
+def license_context():
+    license_path = os.path.join(os.path.dirname(__file__), "CWULicense.txt")
+
+    license_info = None
+    if os.path.exists(license_path):
+        try:
+            with open(license_path, "r") as f:
+                lines = f.readlines()
+
+            # Just parse the raw data for the widget to verify
+            parsed_data = {}
+            signature_b64 = None
+            
+            in_header = False
+            for line in lines:
+                line = line.strip()
+                if line == "--- CHAT WITH US LICENSE ---":
+                    in_header = True
+                    continue
+                if line == "--- END ---": break
+                
+                if in_header:
+                    if line.startswith("SIGNATURE: "):
+                        signature_b64 = line.replace("SIGNATURE: ", "")
+                    elif ": " in line:
+                        key, val = line.split(": ", 1)
+                        parsed_data[key] = val
+
+            if signature_b64 and parsed_data:
+                parsed_data["SIGNATURE"] = signature_b64
+                license_info = parsed_data
+
+        except Exception as e:
+            print(f"[!] Flask license parse error: {e}")
+
+    return {
+        "CWU_LICENSE_INFO": license_info
+    }
 
 # ----------------------
 # Run App

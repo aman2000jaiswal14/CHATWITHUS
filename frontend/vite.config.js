@@ -8,9 +8,9 @@ export default defineConfig({
     // Build as a self-contained library (IIFE) so it auto-executes when loaded
     lib: {
       entry: 'src/main.jsx',
-      name: 'SovereignChat',
+      name: 'ChatWithUs',
       formats: ['iife'],
-      fileName: () => 'widget.js',
+      fileName: () => 'ChatWithUsWid.js',
     },
     rollupOptions: {
       // Bundle everything (including React) into a single file

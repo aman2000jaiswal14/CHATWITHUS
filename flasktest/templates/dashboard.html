@@ -4,12 +4,15 @@
 <h2>Welcome {{ user.username }}!</h2>
 <p>This is your dashboard.</p>
 
+
 <script>
-    window.CHAT_CONFIG = {
-        USER_ID: "{{ user.username }}",
-        API_BASE_URL: "http://localhost:8000",
-        WS_URL: "ws://localhost:8000/ws/chat/{{ user.username }}/",
-    };
+window.CHAT_CONFIG = {
+    USER_ID: "{{ user.username }}",
+    API_BASE_URL: "http://localhost:8000",
+    WS_URL: "ws://localhost:8000/ws/chat/{{ user.username }}/",
+    LICENSE_INFO: {{ CWU_LICENSE_INFO | tojson }},
+};
+</script>
 </script>
 
 <script src="{{ url_for('serve_widget') }}"></script>

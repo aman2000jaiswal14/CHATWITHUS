@@ -20,9 +20,12 @@ from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 
+from django.contrib.staticfiles.storage import staticfiles_storage
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('chat/', include('chat.urls')),
+    path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('favicon.ico'))),
     path('', RedirectView.as_view(pattern_name='login', permanent=False), name='home'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
