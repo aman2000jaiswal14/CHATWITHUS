@@ -556,14 +556,72 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
-    const renderContentWithMentions = (content) => {
+    const renderFormattedContent = (content) => {
         if (!content) return '';
-        const parts = content.split(/(@\w+)/g);
-        return parts.map((part, i) => {
-            if (part.startsWith('@')) {
-                return <span key={i} className="text-emerald-400 font-bold bg-emerald-400/10 px-1 rounded">{part}</span>;
+
+        // Safely parse markdown by splitting text into tokens instead of using dangerouslySetInnerHTML
+        // Token format: { type: 'text'|'mention'|'bold'|'italic'|'strike'|'code'|'pre', content: string }
+
+        let tokens = [{ type: 'text', content: content }];
+
+        const applyRule = (regex, type) => {
+            let newTokens = [];
+            tokens.forEach(token => {
+                if (token.type !== 'text') {
+                    newTokens.push(token);
+                    return;
+                }
+
+                let lastIndex = 0;
+                let match;
+                while ((match = regex.exec(token.content)) !== null) {
+                    if (match.index > lastIndex) {
+                        newTokens.push({ type: 'text', content: token.content.substring(lastIndex, match.index) });
+                    }
+                    newTokens.push({ type: type, content: match[1] || match[0] });
+                    lastIndex = match.index + match[0].length;
+                }
+                if (lastIndex < token.content.length) {
+                    newTokens.push({ type: 'text', content: token.content.substring(lastIndex) });
+                }
+            });
+            tokens = newTokens;
+        };
+
+        // 1. Code blocks ```code```
+        applyRule(/```([\s\S]*?)```/g, 'pre');
+        // 2. Inline code `code`
+        applyRule(/`([^`]+)`/g, 'code');
+        // 3. Bold *bold*
+        applyRule(/\*([^*\n]+)\*/g, 'bold');
+        // 4. Italic _italic_
+        applyRule(/_([^\_\n]+)_/g, 'italic');
+        // 5. Strike ~strike~
+        applyRule(/~([^~\n]+)~/g, 'strike');
+        // 6. Mentions @username
+        applyRule(/(@\w+)/g, 'mention');
+
+        return tokens.map((token, i) => {
+            switch (token.type) {
+                case 'mention':
+                    return <span key={i} className="text-emerald-400 font-bold bg-emerald-400/10 px-1 rounded">{token.content}</span>;
+                case 'bold':
+                    return <strong key={i} className="font-bold text-white">{token.content}</strong>;
+                case 'italic':
+                    return <em key={i} className="italic text-slate-300">{token.content}</em>;
+                case 'strike':
+                    return <del key={i} className="line-through text-slate-500">{token.content}</del>;
+                case 'code':
+                    return <code key={i} className="font-mono text-[11px] bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-emerald-400">{token.content}</code>;
+                case 'pre':
+                    return (
+                        <pre key={i} className="font-mono text-xs bg-[#0b1121] border border-slate-800 p-2 rounded-md my-1 overflow-x-auto text-emerald-500">
+                            <code>{token.content}</code>
+                        </pre>
+                    );
+                default:
+                    return <span key={i}>{token.content}</span>;
             }
-            return part;
         });
     };
 
@@ -681,7 +739,7 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                                                         ? 'bg-emerald-900/20 border border-emerald-700 text-slate-100 shadow-sm'
                                                         : 'bg-[#1e293b] border border-slate-700 text-slate-200 shadow-sm'
                                         }`}>
-                                        {(msg.type === 0 || msg.type === 1) && msg.content && <p className="break-words mb-1">{renderContentWithMentions(msg.content)}</p>}
+                                        {(msg.type === 0 || msg.type === 1) && msg.content && <div className="break-words mb-1 overflow-x-hidden">{renderFormattedContent(msg.content)}</div>}
                                         {renderAttachment(msg.attachment)}
                                         {msg.type === 2 && (
                                             <div className="flex items-center gap-2 font-bold uppercase text-red-400">

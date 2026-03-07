@@ -37,3 +37,6 @@ Screenshots/
 **/bin/
 **/.Python
 **/reports/
+
+# Uploads
+**/media/
