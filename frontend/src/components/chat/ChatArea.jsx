@@ -279,7 +279,7 @@ const DecryptedAudio = ({ url, name }) => {
     );
 };
 
-const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread = 0, license = {} }) => {
+const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, license = {} }) => {
     const [inputText, setInputText] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -292,22 +292,102 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
 
-    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence } = useChatStore();
+    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat } = useChatStore();
+    const messages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
 
     const scrollRef = useRef(null);
+    const isPaginationScroll = useRef(false);
     const [unreadStartIdx, setUnreadStartIdx] = useState(null);
     const [showExport, setShowExport] = useState(false);
+    const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
 
-    // Auto-scroll to bottom
+    // Auto-scroll to bottom or retain scroll position
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (!scrollRef.current) return;
+        // Do not yank scroll down if we just prepended older messages
+        if (isPaginationScroll.current) {
+            isPaginationScroll.current = false;
+            return;
         }
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages, activeChatId]);
 
-    // Fetch history, mark as read, and determine unread marker
+    // Handle Infinite Scroll
+    const handleScroll = async (e) => {
+        if (!e.target) return;
+        // Threshold prefetching: trigger when within 200px of the top
+        if (e.target.scrollTop <= 200 && hasMoreHistory && !isFetchingHistory) {
+            // Verify LAZYLOADING module is licensed
+            const hasLazyLoading = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('LAZYLOADING');
+            if (!hasLazyLoading) return;
+
+            setIsFetchingHistory(true);
+            const currentScrollHeight = e.target.scrollHeight;
+            const config = window.CHAT_CONFIG || {};
+            const baseUrl = config.API_BASE_URL || '';
+            const offset = messages.length;
+            const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=${offset}`;
+
+            try {
+                const res = await fetch(url, { headers: { 'X-Chat-User': config.USER_ID || '' } });
+                const data = await res.json();
+                if (data.messages && data.messages.length > 0) {
+                    const processed = await Promise.all(data.messages.map(async m => {
+                        let content = '';
+                        if (m.payload) {
+                            try {
+                                const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                                const e2eeCiphertext = new TextDecoder().decode(bytes);
+                                content = await encryptionService.decrypt(e2eeCiphertext);
+                            } catch (e) {
+                                try {
+                                    const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                                    content = new TextDecoder().decode(bytes);
+                                } catch (e2) {
+                                    content = m.payload;
+                                }
+                            }
+                        }
+                        return { ...m, content, attachment: m.attachment };
+                    }));
+
+                    isPaginationScroll.current = true;
+                    const numPrepended = processed.length;
+                    if (unreadStartIdx !== null) {
+                        setUnreadStartIdx(unreadStartIdx + numPrepended);
+                    }
+                    loadMoreMessages(activeChatId, processed);
+
+                    // Maintain scroll position smoothly so it doesn't jump to top
+                    setTimeout(() => {
+                        if (scrollRef.current) {
+                            scrollRef.current.scrollTop = scrollRef.current.scrollHeight - currentScrollHeight;
+                            isPaginationScroll.current = false; // unlock after rendering adjust
+                        }
+                    }, 0);
+
+                    if (data.messages.length < 12) {
+                        setHasMoreHistory(false); // Hit the end of database
+                    }
+                } else {
+                    setHasMoreHistory(false);
+                }
+            } catch (err) {
+                console.error("Failed to load more history:", err);
+            } finally {
+                setIsFetchingHistory(false);
+            }
+        }
+    };
+
+    // Fetch history, mark as read, and determine unread marker on initial load
     useEffect(() => {
         if (!activeChatId) return;
+
+        // Reset lazy loading flags for new chat
+        setHasMoreHistory(true);
+        setIsFetchingHistory(false);
 
         // Mark as read in backend
         markRead(activeChatId, isGroupChat).catch(console.error);
@@ -352,6 +432,34 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                         }));
                         setMessages(activeChatId, processed);
 
+                        // BACKGROUND CHAINING: Immediately fetch the next batch (offset 12) 
+                        // to "warm up" history so the first scroll-up is instant.
+                        const hasLazyLoading = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('LAZYLOADING');
+                        if (hasLazyLoading && processed.length === 12) {
+                            const nextUrl = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=12`;
+                            fetch(nextUrl, { headers: { 'X-Chat-User': config.USER_ID || '' } })
+                                .then(res => res.json())
+                                .then(async nextData => {
+                                    if (nextData.messages && nextData.messages.length > 0) {
+                                        const nextProcessed = await Promise.all(nextData.messages.map(async m => {
+                                            let content = '';
+                                            if (m.payload) {
+                                                try {
+                                                    const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                                                    const e2eeCiphertext = new TextDecoder().decode(bytes);
+                                                    content = await encryptionService.decrypt(e2eeCiphertext);
+                                                } catch (e) { content = m.payload; }
+                                            }
+                                            return { ...m, content: content, attachment: m.attachment };
+                                        }));
+                                        loadMoreMessages(activeChatId, nextProcessed);
+                                        if (nextData.messages.length < 12) setHasMoreHistory(false);
+                                    } else {
+                                        setHasMoreHistory(false);
+                                    }
+                                }).catch(console.error);
+                        }
+
                         // After merging, set unread marker
                         if (openedUnread > 0) {
                             const total = (useChatStore.getState().messagesByChat[activeChatId] || []).length;
@@ -363,14 +471,13 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                 })
                 .catch(console.error);
         } else {
-            // Already fetched — use openedUnread prop directly
             if (openedUnread > 0) {
                 setUnreadStartIdx(Math.max(0, messages.length - openedUnread));
             } else {
                 setUnreadStartIdx(null);
             }
         }
-    }, [activeChatId]);
+    }, [activeChatId, isGroupChat, fetchedChats.has(activeChatId)]);
 
     const handleSend = async () => {
         if (!inputText.trim() && !pendingAttachment) return;
@@ -701,8 +808,28 @@ const ChatArea = ({ messages, onSendMessage, onBack, currentUser, openedUnread =
                 </div>
             </div>
 
-            {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+
+
+            <div
+                ref={scrollRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar"
+            >
+                {/* Lazy Loading Banners moved inside scrollable area */}
+                <div className="pt-2">
+                    {isFetchingHistory && (
+                        <div className="flex justify-center mb-4">
+                            <Loader2 size={16} className="text-emerald-500 animate-spin" />
+                        </div>
+                    )}
+                    {!hasMoreHistory && messages.length > 0 && (
+                        <div className="flex justify-center mb-4">
+                            <span className="text-[10px] text-slate-500 font-mono bg-slate-800/50 px-3 py-0.5 rounded-full border border-slate-700/30 uppercase tracking-tighter">
+                                [START OF TRANSMISSION]
+                            </span>
+                        </div>
+                    )}
+                </div>
                 {messages.length === 0 && (
                     <div className="flex items-center justify-center h-full text-slate-600 font-mono text-xs">
                         [NO MESSAGES YET — START TRANSMITTING]

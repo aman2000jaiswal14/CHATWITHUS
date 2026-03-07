@@ -80,7 +80,20 @@ export const useChatStore = create((set, get) => ({
                 [lowerId]: (state.unreadCounts[lowerId] || 0) + 1
             };
         }
+
         return newState;
+    }),
+
+    loadMoreMessages: (chatId, oldMessages) => set((state) => {
+        const lowerId = String(chatId).toLowerCase();
+        const existing = state.messagesByChat[lowerId] || [];
+        const combined = [...oldMessages, ...existing];
+        const unique = Array.from(new Map(combined.map(m => [m.messageId, m])).values())
+            .sort((a, b) => (Number(a.sentAt) || 0) - (Number(b.sentAt) || 0));
+
+        return {
+            messagesByChat: { ...state.messagesByChat, [lowerId]: unique }
+        };
     }),
 
     updatePresence: (userId, statusData) => set((state) => ({

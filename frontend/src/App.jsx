@@ -6,6 +6,7 @@ import CreateGroup from './components/chat/CreateGroup';
 import GroupMembers from './components/chat/GroupMembers';
 import GroupSettings from './components/chat/GroupSettings';
 import Register from './components/chat/Register';
+import { encryptionService } from './services/EncryptionService';
 import { useChatStore } from './store/useChatStore';
 import WebSocketClient from './services/WebSocketClient';
 import { fetchBookmarks, fetchGroups, fetchStatuses, fetchMuteSettings } from './services/api';
@@ -28,6 +29,9 @@ function App() {
     const rawLicense = config.LICENSE_INFO;
     LicensingService.verifyLicense(rawLicense).then(result => {
       window.CWU_VERIFIED_MODULES = result.modules || [];
+      if (result.valid) {
+        encryptionService.preDeriveKey();
+      }
       setLicenseState({ loading: false, valid: !!result.valid, ...result });
     });
   }, []); // Only run once on mount
@@ -39,56 +43,15 @@ function App() {
       const wsClient = WebSocketClient.getInstance(wsUrl, currentUser);
       wsClient.connect();
 
-      const initialUnreads = {};
-
-      fetchBookmarks().then(data => {
-        setBookmarks(data.bookmarks || []);
-        setUnverified(data.unverified || []);
-
-        (data.bookmarks || []).forEach(b => {
-          if (b.unread_count > 0) initialUnreads[b.username.toLowerCase()] = b.unread_count;
-        });
-        (data.unverified || []).forEach(b => {
-          if (b.unread_count > 0) initialUnreads[b.username.toLowerCase()] = b.unread_count;
-        });
-        useChatStore.getState().setUnreadCounts({ ...useChatStore.getState().unreadCounts, ...initialUnreads });
-      }).catch(err => {
-        console.error(err);
-        if (err.message.includes('401') || err.status === 401) setIsRegistered(false);
-      });
-
-      fetchGroups().then(groups => {
-        setGroups(groups);
-        groups.forEach(g => {
-          if (g.unread_count > 0) initialUnreads[String(g.id).toLowerCase()] = g.unread_count;
-        });
-        useChatStore.getState().setUnreadCounts({ ...useChatStore.getState().unreadCounts, ...initialUnreads });
-
-        const ws = WebSocketClient.getInstance();
-        if (ws && ws.socket && ws.socket.readyState === WebSocket.OPEN) {
-          groups.forEach(g => ws.subscribeGroup(String(g.id)));
-        }
-      }).catch(err => {
-        console.error(err);
-        if (err.message?.includes('401') || err.status === 401) setIsRegistered(false);
-      });
-
-      // Load persisted statuses for all contacts
-      fetchStatuses().then(data => {
-        const { updatePresence } = useChatStore.getState();
-        Object.entries(data.statuses || {}).forEach(([userId, status]) => {
-          updatePresence(userId, status);
-        });
-      });
-
       fetchMuteSettings().then(data => {
         setIsMuted(!!data.is_muted);
       }).catch(err => console.error(err));
+
       return () => {
         wsClient.disconnect();
       };
     }
-  }, [wsUrl, currentUser, setBookmarks, setUnverified, setGroups, isRegistered, licenseState.valid]);
+  }, [wsUrl, currentUser, isRegistered, licenseState.valid]);
 
   const handleSelectChat = (chatId, isGroup) => {
     setActiveChat(chatId, isGroup);
@@ -113,14 +76,9 @@ function App() {
     wsClient.sendMessage(activeChatId, text, isGroupChat, msgType, attachment);
   };
 
-  const activeMessages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
-
   if (!isRegistered) {
     return <Register />;
   }
-
-  const licenseInfo = window.CHAT_CONFIG?.LICENSE_INFO;
-  const isLicenseValid = licenseInfo && !licenseInfo.error;
 
   if (licenseState.loading) {
     return (
@@ -166,7 +124,6 @@ function App() {
       )}
       {currentView === 'chat' && (
         <ChatArea
-          messages={activeMessages}
           onSendMessage={handleSendMessage}
           onBack={handleBack}
           currentUser={currentUser}

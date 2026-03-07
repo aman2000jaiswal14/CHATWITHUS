@@ -48,6 +48,17 @@ class WebSocketClient {
         };
     }
 
+    disconnect() {
+        if (this.socket) {
+            this.socket.onclose = null; // Prevent auto-reconnect on deliberate disconnect
+            this.socket.close();
+            this.socket = null;
+        }
+        if (this.refreshDebounceTimer) {
+            clearTimeout(this.refreshDebounceTimer);
+        }
+    }
+
     async onmessage(event) {
         if (typeof event.data === 'string') {
             try {
@@ -233,18 +244,55 @@ class WebSocketClient {
                     fetchGroups(),
                     fetchStatuses()
                 ]);
-                useChatStore.getState().setBookmarks(bookmarksData.bookmarks || []);
-                useChatStore.getState().setUnverified(bookmarksData.unverified || []);
-                useChatStore.getState().setGroups(groupsData || []);
 
+                const state = useChatStore.getState();
+
+                // Update lists
+                state.setBookmarks(bookmarksData.bookmarks || []);
+                state.setUnverified(bookmarksData.unverified || []);
+                state.setGroups(groupsData || []);
+
+                // Update Presences
                 Object.entries(statusData.statuses || {}).forEach(([uid, s]) => {
-                    useChatStore.getState().updatePresence(uid, s);
+                    state.updatePresence(uid, s);
                 });
+
+                // Calculate Unread Counts from fresh data
+                const newUnreads = { ...state.unreadCounts };
+                (bookmarksData.bookmarks || []).forEach(b => {
+                    const cid = b.username.toLowerCase();
+                    if (cid !== state.activeChatId) {
+                        newUnreads[cid] = b.unread_count || 0;
+                    } else {
+                        newUnreads[cid] = 0; // Active chat is always 0 on client
+                    }
+                });
+                (bookmarksData.unverified || []).forEach(b => {
+                    const cid = b.username.toLowerCase();
+                    if (cid !== state.activeChatId) {
+                        newUnreads[cid] = b.unread_count || 0;
+                    } else {
+                        newUnreads[cid] = 0;
+                    }
+                });
+                (groupsData || []).forEach(g => {
+                    const cid = String(g.id).toLowerCase();
+                    if (cid !== state.activeChatId) {
+                        newUnreads[cid] = g.unread_count || 0;
+                    } else {
+                        newUnreads[cid] = 0;
+                    }
+                });
+
+                state.setUnreadCounts(newUnreads);
 
                 // Auto-subscribe to all groups
                 (groupsData || []).forEach(g => this.subscribeGroup(String(g.id)));
             } catch (err) {
                 console.error('[WS] Refresh failed:', err);
+                if (err.status === 401 || (err.message && err.message.includes('401'))) {
+                    useChatStore.getState().setIsRegistered(false);
+                }
             }
         }, 500);
     }

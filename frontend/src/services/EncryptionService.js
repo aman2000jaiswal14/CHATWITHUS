@@ -7,27 +7,49 @@
 const SHARED_SECRET = "CHATWITHUS_V1_SECRET_KEY_FOUNDATION"; // In production, this would be derived via ECDH
 
 class EncryptionService {
+    constructor() {
+        this._cachedKey = null;
+        this._derivingPromise = null;
+    }
+
+    async preDeriveKey() {
+        // Trigger derivation in background - don't await in the caller
+        if (!this._cachedKey) {
+            this._deriveKey().catch(e => console.error("Warmup derivation failed:", e));
+        }
+    }
+
     async _deriveKey() {
-        const encoder = new TextEncoder();
-        const keyMaterial = await window.crypto.subtle.importKey(
-            "raw",
-            encoder.encode(SHARED_SECRET),
-            "PBKDF2",
-            false,
-            ["deriveBits", "deriveKey"]
-        );
-        return window.crypto.subtle.deriveKey(
-            {
-                name: "PBKDF2",
-                salt: encoder.encode("CHATWITHUS_FRONTEND_SALT"),
-                iterations: 100000,
-                hash: "SHA-256"
-            },
-            keyMaterial,
-            { name: "AES-GCM", length: 256 },
-            false,
-            ["encrypt", "decrypt"]
-        );
+        if (this._cachedKey) return this._cachedKey;
+        if (this._derivingPromise) return this._derivingPromise;
+
+        this._derivingPromise = (async () => {
+            const encoder = new TextEncoder();
+            const keyMaterial = await window.crypto.subtle.importKey(
+                "raw",
+                encoder.encode(SHARED_SECRET),
+                "PBKDF2",
+                false,
+                ["deriveBits", "deriveKey"]
+            );
+            const key = await window.crypto.subtle.deriveKey(
+                {
+                    name: "PBKDF2",
+                    salt: encoder.encode("CHATWITHUS_FRONTEND_SALT"),
+                    iterations: 100000,
+                    hash: "SHA-256"
+                },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["encrypt", "decrypt"]
+            );
+            this._cachedKey = key;
+            this._derivingPromise = null;
+            return key;
+        })();
+
+        return this._derivingPromise;
     }
 
     _isE2EEnabled() {

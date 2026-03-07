@@ -444,11 +444,17 @@ def api_group_make_admin(request, group_id):
 
 
 def api_chat_history(request, chat_id):
-    """Fetch last 50 messages for a specific chat (group or DM)."""
+    """Fetch last 50 messages (or paginated via offset) for a specific chat (group or DM)."""
     user = get_authenticated_user(request)
     if not user:
         return JsonResponse({'error': 'unauthorized'}, status=401)
     is_group = request.GET.get('is_group') == 'true'
+    
+    # Parse pagination offset
+    try:
+        offset = int(request.GET.get('offset', 0))
+    except ValueError:
+        offset = 0
     
     from .models import Message
     from django.db.models import Q
@@ -467,7 +473,22 @@ def api_chat_history(request, chat_id):
             (Q(sender__username=chat_id) & Q(recipient=user))
         )
 
-    history = messages.order_by('-timestamp').prefetch_related('attachments')[:50]
+    # Check license for LAZYLOADING module
+    from chat.services.licensing import LicensingService
+    license_info = LicensingService.get_license_info()
+    has_lazyloading = False
+    if license_info and "error" not in license_info and "MODULES" in license_info:
+        modules = license_info.get("MODULES", "")
+        if "LAZYLOADING" in modules:
+            has_lazyloading = True
+
+    # Enforce limit if not licensed
+    limit = 12
+    if not has_lazyloading:
+        offset = 0
+        limit = 50
+
+    history = messages.order_by('-timestamp').prefetch_related('attachments')[offset:offset+limit]
     data = []
     for msg in reversed(history):
         msg_dict = {

@@ -34,12 +34,23 @@
     </div>
 
     {% if user.is_authenticated %}
+    <!-- Chat Widget Anchor Point -->
+    <div id="root"></div>
+
     <!-- Chat Widget Config -->
     <script id="chat-config" type="application/json">
         {
             "USER_ID": "{{ user.username|escapejs }}",
-            "CSRF_TOKEN": "{{ csrf_token|escapejs }}",
+            "USER_NAME": "{{ user.name|default:user.username|escapejs }}",
+            "USER_ROLE": "{{ user.role|escapejs }}",
+            "API_USERS_URL": "/chat/api/users/",
+            "API_BOOKMARKS_URL": "/chat/api/bookmarks/",
+            "API_BOOKMARK_ADD_URL": "/chat/api/bookmarks/add/",
+            "API_BOOKMARK_REMOVE_URL": "/chat/api/bookmarks/remove/",
+            "API_GROUPS_URL": "/chat/api/groups/",
+            "API_GROUP_CREATE_URL": "/chat/api/groups/create/",
             "WS_URL": "ws://{{ request.get_host|escapejs }}/ws/chat/{{ user.username|urlencode }}/",
+            "CSRF_TOKEN": "{{ csrf_token|escapejs }}",
             "LICENSE_INFO": {{ CWU_LICENSE_JSON|safe }}
         }
     </script>
