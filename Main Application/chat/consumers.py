@@ -49,6 +49,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
                 if wrapper.HasField('chat_message'):
                     message = wrapper.chat_message
+                    
+                    # Prevent sender impersonation IDOR
+                    if message.sender_id != self.user_id:
+                        print(f"[AUTH WARN] Enforcing sender_id to {self.user_id} (attempted {message.sender_id})")
+                        message.sender_id = self.user_id
+
+                    # Prevent unauthorized group message injection IDOR
+                    if message.is_group_message:
+                        is_member = await self.is_user_in_group(self.user_id, message.target_id)
+                        if not is_member:
+                            print(f"[AUTH ERROR] User {self.user_id} attempted to message group {message.target_id} without membership")
+                            return
+
                     message.received_at = int(time.time() * 1000)
 
                     try:
@@ -88,8 +101,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     command = wrapper.command
                     target_group = f'group_{command.target_id}'
                     if command.type == messages_pb2.Command.SUBSCRIBE_GROUP:
-                        await self.channel_layer.group_add(target_group, self.channel_name)
-                        self.joined_groups.add(target_group)
+                        is_member = await self.is_user_in_group(self.user_id, command.target_id)
+                        if is_member:
+                            await self.channel_layer.group_add(target_group, self.channel_name)
+                            self.joined_groups.add(target_group)
+                        else:
+                            print(f"[AUTH ERROR] User {self.user_id} attempted to subscribe to group {command.target_id} without membership")
                     elif command.type == messages_pb2.Command.UNSUBSCRIBE_GROUP:
                         await self.channel_layer.group_discard(target_group, self.channel_name)
                         self.joined_groups.discard(target_group)
@@ -274,3 +291,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"[DB SAVE ERROR] {e}")
             import traceback
             traceback.print_exc()
+
+    @database_sync_to_async
+    def is_user_in_group(self, username, group_id):
+        from .models import ChatGroup
+        try:
+            group = ChatGroup.objects.get(id=int(group_id))
+            return group.members.filter(username=username).exists()
+        except (ChatGroup.DoesNotExist, ValueError):
+            return False

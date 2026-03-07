@@ -5,17 +5,17 @@
 <p>This is your dashboard.</p>
 
 
-<script>
-window.CHAT_CONFIG = {
-    USER_ID: "{{ user.username }}",
-    API_BASE_URL: "http://localhost:8000",
-    WS_URL: "ws://localhost:8000/ws/chat/{{ user.username }}/",
-    LICENSE_INFO: {{ CWU_LICENSE_INFO | tojson }},
-};
+<script id="chat-config" type="application/json">
+{
+    "USER_ID": {{ user.username | tojson }},
+    "API_BASE_URL": "http://localhost:8000",
+    "WS_URL": "ws://localhost:8000/ws/chat/{{ user.username | urlencode }}/",
+    "LICENSE_INFO": {{ CWU_LICENSE_INFO | tojson }}
+}
 </script>
-</script>
+<script src="{{ url_for('static', filename='js/init-chat.js') }}"></script>
 
-<script src="{{ url_for('serve_widget') }}"></script>
+<script src="{{ url_for('static', filename='chat/ChatWithUsWid.js') }}"></script>
 
 <br><br>
 <a href="{{ url_for('logout') }}">Logout</a>

@@ -76,10 +76,6 @@ def login():
 
 from flask import send_from_directory
 import os
-
-@app.route('/widget.js')
-def serve_widget():
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'ChatWithUsWid.js')
     
 @app.route("/dashboard")
 @login_required

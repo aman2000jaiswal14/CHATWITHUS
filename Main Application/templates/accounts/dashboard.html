@@ -4,35 +4,27 @@
 {% block title %}Dashboard - Main Application{% endblock %}
 
 {% block content %}
-<div
-    style="background-color: var(--card-bg); border-radius: 0.5rem; padding: 2.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid var(--border-color); text-align: center; max-width: 800px; margin: 2rem auto;">
-    <h1 style="color: var(--primary-color); font-size: 2.5rem; margin-top: 0; margin-bottom: 1rem;">Welcome to your
-        Dashboard</h1>
-    <p style="font-size: 1.125rem; color: #4b5563; margin-bottom: 2rem;">
+<div class="dashboard-card">
+    <h1 class="dashboard-title">Welcome to your Dashboard</h1>
+    <p class="dashboard-subtitle">
         Hello, <strong>{{ user.name|default:user.username }}</strong>! You have successfully logged into the Main
         Application.
         <br><br>
-        Your role is: <span
-            style="background-color: var(--primary-color); color: white; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">{{
-            user.get_role_display|default:user.role }}</span>
+        Your role is: <span class="role-badge">{{ user.get_role_display|default:user.role }}</span>
     </p>
 
-    <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 2rem;">
-        <div
-            style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background-color: #f9fafb;">
-            <h3 style="margin-top: 0; color: #1f2937;">Profile</h3>
-            <p style="color: #6b7280; font-size: 0.875rem;">Manage your personal information and settings.</p>
+    <div class="dashboard-grid">
+        <div class="dashboard-item">
+            <h3>Profile</h3>
+            <p>Manage your personal information and settings.</p>
         </div>
-        <div
-            style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background-color: #f9fafb;">
-            <h3 style="margin-top: 0; color: #1f2937;">Activity</h3>
-            <p style="color: #6b7280; font-size: 0.875rem;">View your recent actions and login history.</p>
+        <div class="dashboard-item">
+            <h3>Activity</h3>
+            <p>View your recent actions and login history.</p>
         </div>
-        <div
-            style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background-color: #f9fafb;">
-            <h3 style="margin-top: 0; color: #1f2937;">Settings</h3>
-            <p style="color: #6b7280; font-size: 0.875rem;">Configure application preferences.</p>
+        <div class="dashboard-item">
+            <h3>Settings</h3>
+            <p>Configure application preferences.</p>
         </div>
     </div>
 </div>
@@ -41,21 +33,22 @@
 <div id="root"></div>
 
 <!-- Auth Bridge: Pass user identity and API URL to the Chat Widget -->
-<script>
-    window.CHAT_CONFIG = {
-        USER_ID: "{{ user.username }}",
-        USER_NAME: "{{ user.name|default:user.username }}",
-        USER_ROLE: "{{ user.role }}",
-        API_USERS_URL: "/chat/api/users/",
-        API_BOOKMARKS_URL: "/chat/api/bookmarks/",
-        API_BOOKMARK_ADD_URL: "/chat/api/bookmarks/add/",
-        API_BOOKMARK_REMOVE_URL: "/chat/api/bookmarks/remove/",
-        API_GROUPS_URL: "/chat/api/groups/",
-        API_GROUP_CREATE_URL: "/chat/api/groups/create/",
-        WS_URL: "ws://" + window.location.host + "/ws/chat/{{ user.username }}/",
-        CSRF_TOKEN: "{{ csrf_token }}",
-        LICENSE_INFO: {{ CWU_LICENSE_JSON | safe }}
-    };
+<script id="chat-config" type="application/json">
+    {
+        "USER_ID": "{{ user.username|escapejs }}",
+        "USER_NAME": "{{ user.name|default:user.username|escapejs }}",
+        "USER_ROLE": "{{ user.role|escapejs }}",
+        "API_USERS_URL": "/chat/api/users/",
+        "API_BOOKMARKS_URL": "/chat/api/bookmarks/",
+        "API_BOOKMARK_ADD_URL": "/chat/api/bookmarks/add/",
+        "API_BOOKMARK_REMOVE_URL": "/chat/api/bookmarks/remove/",
+        "API_GROUPS_URL": "/chat/api/groups/",
+        "API_GROUP_CREATE_URL": "/chat/api/groups/create/",
+        "WS_URL": "ws://{{ request.get_host|escapejs }}/ws/chat/{{ user.username|urlencode }}/",
+        "CSRF_TOKEN": "{{ csrf_token|escapejs }}",
+        "LICENSE_INFO": {{ CWU_LICENSE_JSON|safe }}
+    }
 </script>
+<script src="{% static 'js/init-chat.js' %}"></script>
 <script src="{% static 'chat/ChatWithUsWid.js' %}"></script>
 {% endblock %}

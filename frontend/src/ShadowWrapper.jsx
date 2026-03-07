@@ -17,9 +17,17 @@ const ChatWidget = () => {
     if (hostRef.current && !shadowRootRef.current) {
       shadowRootRef.current = hostRef.current.attachShadow({ mode: 'open' });
 
-      const styleElement = document.createElement('style');
-      styleElement.textContent = stylesString;
-      shadowRootRef.current.appendChild(styleElement);
+      try {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(stylesString);
+        shadowRootRef.current.adoptedStyleSheets = [sheet];
+      } catch (err) {
+        // Fallback for extremely old browsers, though most modern browsers support adoptedStyleSheets
+        console.warn('Constructable Stylesheets not supported, falling back to inline style DOM injection.', err);
+        const styleElement = document.createElement('style');
+        styleElement.textContent = stylesString;
+        shadowRootRef.current.appendChild(styleElement);
+      }
 
       const rootContainer = document.createElement('div');
       rootContainer.id = 'chat-widget-root';
@@ -110,14 +118,6 @@ const ChatWidget = () => {
           </div>
         )}
       </button>
-
-      <style>{`
-        @keyframes pulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.1); }
-          100% { transform: scale(1); }
-        }
-      `}</style>
     </>
   );
 };

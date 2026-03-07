@@ -3,7 +3,7 @@
 {% block title %}Register - Main Application{% endblock %}
 
 {% block content %}
-<div class="auth-card" style="max-width: 500px;">
+<div class="auth-card auth-card-wide">
     <h2>Create an Account</h2>
     <form method="post">
         {% csrf_token %}
@@ -12,8 +12,7 @@
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
             {% if field.help_text %}
-            <small style="color: #6b7280; font-size: 0.75rem; display: block; margin-top: 0.25rem;">{{
-                field.help_text|safe }}</small>
+            <small class="help-text">{{ field.help_text|safe }}</small>
             {% endif %}
             {% if field.errors %}
             <ul class="errorlist">

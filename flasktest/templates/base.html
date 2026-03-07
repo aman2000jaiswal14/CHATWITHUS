@@ -1,19 +1,23 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>Flask App</title>
+  <title>Flask App</title>
 </head>
+
 <body>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for message in messages %}
-          <p style="color:red;">{{ message }}</p>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  {% with messages = get_flashed_messages() %}
+  {% if messages %}
+  {% for message in messages %}
+  <p class="flash-message">{{ message }}</p>
+  {% endfor %}
+  {% endif %}
+  {% endwith %}
 
-    {% block content %}{% endblock %}
+  {% block content %}{% endblock %}
 
 </body>
+
 </html>
