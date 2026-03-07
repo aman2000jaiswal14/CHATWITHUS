@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, UserMinus, UserPlus, User as UserIcon, Shield, ShieldPlus, LogOut } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
-import { fetchGroupMembers, removeGroupMember, fetchAllUsers, addGroupMember, leaveGroup, makeGroupAdmin } from '../../services/api';
+import { fetchGroupMembers, removeGroupMember, searchUsers, addGroupMember, leaveGroup, makeGroupAdmin } from '../../services/api';
 
 const GroupMembers = ({ onBack }) => {
     const { activeChatId, groups, setGroups, setCurrentView } = useChatStore();
@@ -10,10 +10,13 @@ const GroupMembers = ({ onBack }) => {
     const [allUsers, setAllUsers] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
+    const [searchLoading, setSearchLoading] = useState(false);
     const [showAddUser, setShowAddUser] = useState(false);
     const [removing, setRemoving] = useState(null);
     const [adding, setAdding] = useState(null);
     const [promoting, setPromoting] = useState(null);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
 
     const config = window.CHAT_CONFIG || {};
     const currentUser = config.USER_ID || '';
@@ -26,6 +29,40 @@ const GroupMembers = ({ onBack }) => {
             setLoading(false);
         });
     }, [activeChatId]);
+
+    const handleSearch = async (newSearch = search, newPage = 1) => {
+        if (!newSearch.trim() && newPage === 1) {
+            setAllUsers([]);
+            return;
+        }
+        setSearchLoading(true);
+        try {
+            const data = await searchUsers(newSearch, newPage);
+            const memberUsernames = new Set(members.map(m => m.username));
+            const filteredResults = data.users.filter(u => !memberUsernames.has(u.username));
+
+            if (newPage === 1) {
+                setAllUsers(filteredResults);
+            } else {
+                setAllUsers(prev => [...prev, ...filteredResults]);
+            }
+            setHasMore(data.has_more);
+            setPage(newPage);
+        } catch (err) {
+            console.error("Search failed:", err);
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    // Debounced search effect
+    useEffect(() => {
+        if (!showAddUser) return;
+        const timer = setTimeout(() => {
+            handleSearch(search, 1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [search, showAddUser]);
 
     const handleRemove = async (username) => {
         setRemoving(username);
@@ -60,11 +97,10 @@ const GroupMembers = ({ onBack }) => {
         }
     };
 
-    const handleShowAdd = async () => {
+    const handleShowAdd = () => {
         setShowAddUser(true);
-        const users = await fetchAllUsers();
-        const memberUsernames = new Set(members.map(m => m.username));
-        setAllUsers(users.filter(u => !memberUsernames.has(u.username)));
+        setAllUsers([]);
+        setSearch('');
     };
 
     const handleAdd = async (username) => {
@@ -82,11 +118,6 @@ const GroupMembers = ({ onBack }) => {
         }
         setAdding(null);
     };
-
-    const filtered = allUsers.filter(u =>
-        u.name.toLowerCase().includes(search.toLowerCase()) ||
-        u.username.toLowerCase().includes(search.toLowerCase())
-    );
 
     return (
         <div className="w-full bg-[#0f172a] flex flex-col h-full text-white">
@@ -158,11 +189,9 @@ const GroupMembers = ({ onBack }) => {
                                 autoFocus
                             />
                         </div>
-                        {allUsers.length === 0 && <p className="text-xs text-slate-500 font-mono p-2">All users are already members</p>}
-                        {!loading && showAddUser && allUsers.length > 0 && filtered.length === 0 && (
-                            <p className="text-xs text-slate-500 font-mono p-2">No users found</p>
-                        )}
-                        {filtered.map((user) => (
+                        {searchLoading && <p className="text-[10px] text-slate-500 font-mono p-1">Searching...</p>}
+
+                        {allUsers.map((user) => (
                             <div key={user.username} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-800 transition-colors">
                                 <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
                                     <UserIcon className="w-4 h-4 text-slate-400" />
@@ -178,6 +207,19 @@ const GroupMembers = ({ onBack }) => {
                                 </button>
                             </div>
                         ))}
+
+                        {!searchLoading && hasMore && (
+                            <button
+                                onClick={() => handleSearch(search, page + 1)}
+                                className="w-full py-1 text-[10px] text-emerald-500 hover:text-emerald-400 font-mono"
+                            >
+                                Load More
+                            </button>
+                        )}
+
+                        {!searchLoading && allUsers.length === 0 && search.trim() && (
+                            <p className="text-xs text-slate-500 font-mono p-2 text-center">No users found</p>
+                        )}
                     </>
                 )}
             </div>

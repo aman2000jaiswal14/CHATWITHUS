@@ -57,11 +57,11 @@ export async function verifyBookmark(username) {
     return res.json();
 }
 
-export async function fetchAllUsers() {
-    const res = await fetch(getUrl('/chat/api/users/'), { credentials: 'same-origin', headers: getHeaders('GET') });
+export async function searchUsers(query = '', page = 1) {
+    const url = getUrl(`/chat/api/users/?q=${encodeURIComponent(query)}&page=${page}`);
+    const res = await fetch(url, { credentials: 'same-origin', headers: getHeaders('GET') });
     if (!res.ok) throw res;
-    const data = await res.json();
-    return data.users || [];
+    return res.json(); // Returns { users, total_count, has_more, page }
 }
 
 export async function fetchGroups() {

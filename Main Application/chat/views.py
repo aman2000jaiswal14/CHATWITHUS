@@ -204,21 +204,47 @@ def api_bookmark_verify(request):
 
 
 def api_all_users(request):
-    """List all users except the current one."""
+    """List users via server-side search with pagination."""
     user = get_authenticated_user(request)
     if not user:
         return JsonResponse({'error': 'unauthorized'}, status=401)
-    users = User.objects.exclude(id=user.id).exclude(is_superuser=True).values('id', 'username', 'name', 'role')
+        
+    query = request.GET.get('q', '').strip()
+    try:
+        page = int(request.GET.get('page', 1))
+    except ValueError:
+        page = 1
+        
+    limit = 20
+    offset = (page - 1) * limit
+    
+    users_qs = User.objects.exclude(id=user.id).exclude(is_superuser=True)
+    
+    if query:
+        users_qs = users_qs.filter(
+            Q(username__icontains=query) | Q(name__icontains=query)
+        )
+    
+    total_count = users_qs.count()
+    users = users_qs.values('id', 'username', 'name', 'role')[offset:offset+limit]
+    
     bookmarked = set(
         Bookmark.objects.filter(user=user).values_list('bookmarked_user__username', flat=True)
     )
+    
     result = [{
         'username': u['username'],
         'name': u['name'] or u['username'],
         'role': u['role'],
         'is_bookmarked': u['username'] in bookmarked,
     } for u in users]
-    return JsonResponse({'users': result})
+    
+    return JsonResponse({
+        'users': result,
+        'total_count': total_count,
+        'page': page,
+        'has_more': offset + limit < total_count
+    })
 
 
 

@@ -1,50 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Check, User as UserIcon } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
-import { fetchAllUsers, createGroup } from '../../services/api';
+import { searchUsers, createGroup } from '../../services/api';
 import WebSocketClient from '../../services/WebSocketClient';
 
 const CreateGroup = ({ onBack }) => {
     const { addGroup, setCurrentView } = useChatStore();
     const [name, setName] = useState('');
-    const [allUsers, setAllUsers] = useState([]);
+    const [users, setUsers] = useState([]);
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState(new Set());
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
 
-    useEffect(() => {
-        fetchAllUsers().then(users => {
-            setAllUsers(users);
-            setLoading(false);
-        });
-    }, []);
-
-    const toggleUser = (username) => {
-        const next = new Set(selected);
-        if (next.has(username)) next.delete(username);
-        else next.add(username);
-        setSelected(next);
-    };
-
-    const handleCreate = async () => {
-        if (!name.trim()) return;
-        setCreating(true);
-        const result = await createGroup(name.trim(), [...selected]);
-        if (result.group) {
-            addGroup(result.group);
-            // Subscribe to the new group via WebSocket
-            const ws = WebSocketClient.getInstance();
-            ws.subscribeGroup(String(result.group.id));
+    const handleSearch = async (newSearch = search, newPage = 1) => {
+        if (!newSearch.trim() && newPage === 1) {
+            setUsers([]);
+            return;
         }
-        setCreating(false);
-        setCurrentView('contacts');
+        setLoading(true);
+        try {
+            const data = await searchUsers(newSearch, newPage);
+            if (newPage === 1) {
+                setUsers(data.users);
+            } else {
+                setUsers(prev => [...prev, ...data.users]);
+            }
+            setHasMore(data.has_more);
+            setPage(newPage);
+        } catch (err) {
+            console.error("Search failed:", err);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const filtered = allUsers.filter(u =>
-        u.name.toLowerCase().includes(search.toLowerCase()) ||
-        u.username.toLowerCase().includes(search.toLowerCase())
-    );
+    // Debounced search effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            handleSearch(search, 1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     return (
         <div className="w-full bg-[#0f172a] flex flex-col h-full text-white">
@@ -78,12 +77,8 @@ const CreateGroup = ({ onBack }) => {
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest">Select Members ({selected.size})</p>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 space-y-1">
-                {loading && <p className="text-xs text-slate-500 font-mono p-2">Loading...</p>}
-                {!loading && filtered.length === 0 && (
-                    <p className="text-xs text-slate-500 font-mono p-2">No users found</p>
-                )}
-                {filtered.map((user) => {
+            <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+                {users.map((user) => {
                     const isSelected = selected.has(user.username);
                     return (
                         <div
@@ -103,6 +98,21 @@ const CreateGroup = ({ onBack }) => {
                         </div>
                     );
                 })}
+
+                {loading && <p className="text-xs text-slate-500 font-mono p-2">Searching...</p>}
+
+                {!loading && hasMore && (
+                    <button
+                        onClick={() => handleSearch(search, page + 1)}
+                        className="w-full py-2 text-xs text-emerald-500 hover:text-emerald-400 font-mono"
+                    >
+                        Load More Results
+                    </button>
+                )}
+
+                {!loading && users.length === 0 && search.trim() && (
+                    <p className="text-xs text-slate-500 font-mono p-2 text-center mt-4">No users found for "{search}"</p>
+                )}
             </div>
 
             <div className="p-3 border-t border-slate-800 flex-shrink-0">
