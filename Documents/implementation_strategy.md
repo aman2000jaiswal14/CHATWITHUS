@@ -30,5 +30,5 @@ This document summarizes the steps to implement the WCA Secure Sovereign Chat ba
 
 ## 3. Visual Reference
 UI Mockups can be found in the `Screenshots/` directory:
-- [Chat Interface](file:///home/aman/aman/AntiGravityProject/WCAA/Screenshots/chat_interface_mockup.png)
-- [PTT Voice Interface](file:///home/aman/aman/AntiGravityProject/WCAA/Screenshots/ptt_voice_interface_mockup.png)
+- [Chat Interface](./Screenshots/chat_interface_mockup.png)
+- [PTT Voice Interface](./Screenshots/ptt_voice_interface_mockup.png)
