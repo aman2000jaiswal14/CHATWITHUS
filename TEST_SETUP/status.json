@@ -1,0 +1,86 @@
+{
+    "Backend": {
+        "status": "PASSED",
+        "details": "re/wsgi.py                                                             4      4     0%\nmanage.py                                                               11     11     0%\n----------------------------------------------------------------------------------------\nTOTAL                                                                 1189    942    21%\nCoverage HTML written to dir TEST_SETUP/reports/backend_coverage\n============================== 2 passed in 3.86s ===============================\n",
+        "cases": [
+            {
+                "name": "test_user_creation",
+                "status": "PASSED",
+                "error": "",
+                "solution": ""
+            },
+            {
+                "name": "test_login_view",
+                "status": "PASSED",
+                "error": "",
+                "solution": ""
+            }
+        ],
+        "timestamp": "2026-03-07 17:52:16"
+    },
+    "Frontend": {
+        "status": "PASSED",
+        "details": "\n> frontend@0.0.0 test\n> vitest --run --reporter=verbose\n\n\n RUN  v3.2.4 /home/aman/aman/testproject3/CHATWITHUS/frontend\n\n \u2713 src/simple.test.jsx > Simple Frontend Test > should pass 4ms\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  17:52:17\n   Duration  1.18s (transform 387ms, setup 0ms, collect 55ms, tests 7ms, environment 0ms, prepare 731ms)\n\n",
+        "cases": [
+            {
+                "name": "src/simple.test.jsx > Simple Frontend Test > shoul",
+                "status": "PASSED",
+                "error": "",
+                "solution": ""
+            }
+        ],
+        "timestamp": "2026-03-07 17:52:18"
+    },
+    "Security (Backend)": {
+        "status": "FAILED",
+        "details": "kle.loads(pickle.dumps(comp))\n3342\t        self.assertEqual(comp2.__name__, 'test')\n\n--------------------------------------------------\n\nCode scanned:\n\tTotal lines of code: 908003\n\tTotal lines skipped (#nosec): 0\n\tTotal potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 1\n\nRun metrics:\n\tTotal issues (by severity):\n\t\tUndefined: 0\n\t\tLow: 3932\n\t\tMedium: 365\n\t\tHigh: 94\n\tTotal issues (by confidence):\n\t\tUndefined: 0\n\t\tLow: 20\n\t\tMedium: 252\n\t\tHigh: 4119\nFiles skipped (0):\n",
+        "cases": [
+            {
+                "name": "Security (Backend) Execution",
+                "status": "FAILED",
+                "error": "defined: 0 \t\tLow: 3932 \t\tMedium: 365 \t\tHigh: 94 \tTotal issues (by confidence): \t\tUndefined: 0 \t\tLow: 20 \t\tMedium: 252 \t\tHigh: 4119 Files skipped (0):",
+                "solution": "Check pytest assertion. Review backend logic."
+            }
+        ],
+        "timestamp": "2026-03-07 17:54:37"
+    },
+    "Security (Frontend)": {
+        "status": "PASSED",
+        "details": "found 0 vulnerabilities\n",
+        "cases": [
+            {
+                "name": "Security (Frontend) Execution",
+                "status": "PASSED",
+                "error": "",
+                "solution": ""
+            }
+        ],
+        "timestamp": "2026-03-07 17:54:39"
+    },
+    "Load": {
+        "status": "FAILED",
+        "details": " /chat/api/messages/: ConnectionRefusedError(111, 'Connection refused')                          \n1                  GET /chat/api/check-license/: ConnectionRefusedError(111, 'Connection refused')                     \n1                  GET /: ConnectionRefusedError(111, 'Connection refused')                                            \n------------------|---------------------------------------------------------------------------------------------------------------------------------------------\n\n",
+        "cases": [
+            {
+                "name": "Load Execution",
+                "status": "FAILED",
+                "error": "------|---------------------------------------------------------------------------------------------------------------------------------------------",
+                "solution": "Ensure the test server/db is running."
+            }
+        ],
+        "timestamp": "2026-03-07 17:54:45"
+    },
+    "E2E": {
+        "status": "FAILED",
+        "details": "Connecting to application...\n\u274c Failed to connect to http://localhost:8000. Is the server running? Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/accounts/login/\nCall log:\n  - navigating to \"http://localhost:8000/accounts/login/\", waiting until \"load\"\n\n",
+        "cases": [
+            {
+                "name": "E2E Execution",
+                "status": "FAILED",
+                "error": "ONNECTION_REFUSED at http://localhost:8000/accounts/login/ Call log:   - navigating to \"http://localhost:8000/accounts/login/\", waiting until \"load\"",
+                "solution": "Review verbose logs to identify exact cause."
+            }
+        ],
+        "timestamp": "2026-03-07 17:54:47"
+    }
+}

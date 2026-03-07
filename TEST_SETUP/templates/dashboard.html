@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WCA Testing Dashboard</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --console-bg: #020617;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --error: #ef4444;
+            --running: #eab308;
+            --border: #334155;
+            --accent: #818cf8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 1.5rem;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+            background: rgba(30, 41, 59, 0.5);
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+        }
+
+        .btn-accent {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+        }
+
+        .btn-stop {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
+        .btn-stop:hover {
+            background-color: var(--error);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        .btn:disabled {
+            background-color: var(--border);
+            cursor: not-allowed;
+            transform: none;
+            opacity: 0.6;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 450px;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-pending {
+            background: #334155;
+            color: #94a3b8;
+        }
+
+        .badge-running {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+
+        .badge-passed {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .badge-failed {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* Report View */
+        .report-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            z-index: 1000;
+            display: none;
+            padding: 2rem;
+            overflow-y: auto;
+            backdrop-filter: blur(8px);
+        }
+
+        .report-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 1.5rem;
+            padding: 3rem;
+            position: relative;
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+        }
+
+        .close-report {
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+
+        .close-report:hover {
+            color: var(--text);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-box {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 1rem;
+        }
+
+        .chart-title {
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        /* Console styling */
+        .console-container {
+            background-color: var(--console-bg);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 8rem);
+            position: sticky;
+            top: 1.5rem;
+        }
+
+        .console-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 1rem 1rem 0 0;
+        }
+
+        .console-body {
+            padding: 1rem;
+            flex-grow: 1;
+            overflow-y: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
+        .log-line {
+            margin-bottom: 2px;
+        }
+
+        .log-info {
+            color: #818cf8;
+        }
+
+        .log-success {
+            color: #22c55e;
+        }
+
+        .log-error {
+            color: #f87171;
+        }
+
+        .loading-bar {
+            height: 3px;
+            width: 100%;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .loading-bar.active {
+            display: block;
+        }
+
+        .loading-progress {
+            height: 100%;
+            width: 30%;
+            background: var(--primary);
+            animation: loading 1.5s infinite ease-in-out;
+        }
+
+        @keyframes loading {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(400%);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                WCA Test Engine
+            </div>
+            <div class="header-actions">
+                <button id="showReportBtn" class="btn btn-accent" onclick="toggleReport(true)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                    </svg>
+                    Visual Report
+                </button>
+                <button id="stopBtn" class="btn btn-stop" onclick="stopTests()" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    </svg>
+                    Stop
+                </button>
+                <a href="/testWCA/api/report/pdf" target="_blank" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    PDF
+                </a>
+                <button id="runAllBtn" class="btn" onclick="runTests('all')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Run All
+                </button>
+            </div>
+        </header>
+
+        <div id="loadingBar" class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
+
+        <div class="main-layout">
+            <div class="content-left">
+                <div id="dashboard" class="grid">
+                    <!-- Dynamic Cards -->
+                </div>
+            </div>
+
+            <div class="console-container">
+                <div class="console-header">
+                    <div
+                        style="font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted);">
+                        <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);"
+                            id="consoleDot"></span>
+                        LIVE_STDOUT
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="clearConsole()"
+                        style="padding: 0.2rem 0.5rem; font-size: 0.7rem; opacity: 0.7;">
+                        CLEAR
+                    </button>
+                </div>
+                <div class="console-body" id="consoleBody">
+                    <div class="log-line">Idle...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Integrated Report Overlay -->
+    <div id="reportOverlay" class="report-overlay">
+        <div class="report-content">
+            <div class="report-header">
+                <h1 style="font-size: 2rem; font-weight: 800;">WCA Performance Insights</h1>
+                <div class="close-report" onclick="toggleReport(false)">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statTests">0</div>
+                    <div class="stat-label">Total Tests</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statPassed" style="color: var(--success);">0</div>
+                    <div class="stat-label">Passed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statFailed" style="color: var(--error);">0</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statCoverage">0%</div>
+                    <div class="stat-label">Line Coverage</div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-box">
+                    <div class="chart-title">Overall Test Health</div>
+                    <canvas id="healthChart"></canvas>
+                </div>
+                <div class="chart-box">
+                    <div class="chart-title">Coverage by Category</div>
+                    <canvas id="coverageChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let lastLogContent = "";
+        let healthChart = null;
+        let coverageChart = null;
+
+        const suites = [
+            { id: 'backend', name: 'Backend (Unit)' },
+            { id: 'frontend', name: 'Frontend (Unit)' },
+            { id: 'security', name: 'Security' },
+            { id: 'load', name: 'Load Tests' },
+            { id: 'e2e', name: 'E2E Flow' }
+        ];
+
+        async function checkRunningStatus() {
+            try {
+                const resp = await fetch('/testWCA/api/is_running');
+                const data = await resp.json();
+                isRunning = data.running;
+
+                document.getElementById('runAllBtn').disabled = isRunning;
+                document.getElementById('stopBtn').style.display = isRunning ? 'flex' : 'none';
+                document.getElementById('consoleDot').style.background = isRunning ? 'var(--running)' : 'var(--success)';
+
+                const suiteBtns = document.querySelectorAll('.suite-run-btn');
+                suiteBtns.forEach(btn => btn.disabled = isRunning);
+
+                if (isRunning) {
+                    document.getElementById('loadingBar').classList.add('active');
+                } else {
+                    document.getElementById('loadingBar').classList.remove('active');
+                }
+            } catch (e) { }
+        }
+
+        async function toggleReport(show) {
+            const overlay = document.getElementById('reportOverlay');
+            if (show) {
+                overlay.style.display = 'block';
+                await loadReportData();
+            } else {
+                overlay.style.display = 'none';
+            }
+        }
+
+        async function loadReportData() {
+            try {
+                const resp = await fetch('/testWCA/api/report/data');
+                const data = await resp.json();
+
+                if (Object.keys(data).length === 0) return;
+
+                let total = 0, passed = 0, failed = 0, totalCov = 0, covCount = 0;
+
+                for (const suite in data) {
+                    total += data[suite].total || 0;
+                    passed += data[suite].passed || 0;
+                    failed += data[suite].failed || 0;
+                    if (data[suite].coverage !== null) {
+                        totalCov += data[suite].coverage;
+                        covCount++;
+                    }
+                }
+
+                document.getElementById('statTests').innerText = total;
+                document.getElementById('statPassed').innerText = passed;
+                document.getElementById('statFailed').innerText = failed;
+                document.getElementById('statCoverage').innerText = covCount > 0 ? Math.round(totalCov / covCount) + '%' : '0%';
+
+                renderCharts(passed, failed, data);
+            } catch (e) { }
+        }
+
+        function renderCharts(passed, failed, data) {
+            const ctxHealth = document.getElementById('healthChart').getContext('2d');
+            const ctxCov = document.getElementById('coverageChart').getContext('2d');
+
+            if (healthChart) healthChart.destroy();
+            if (coverageChart) coverageChart.destroy();
+
+            healthChart = new Chart(ctxHealth, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Passed', 'Failed'],
+                    datasets: [{
+                        data: [passed, failed],
+                        backgroundColor: ['#22c55e', '#ef4444'],
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    cutout: '70%',
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }
+                }
+            });
+
+            const covLabels = Object.keys(data).filter(k => data[k].coverage !== null);
+            const covValues = covLabels.map(k => data[k].coverage);
+
+            coverageChart = new Chart(ctxCov, {
+                type: 'bar',
+                data: {
+                    labels: covLabels,
+                    datasets: [{
+                        label: 'Coverage %',
+                        data: covValues,
+                        backgroundColor: '#6366f1',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true, max: 100, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        async function runTests(type) {
+            if (isRunning) return;
+            document.getElementById('consoleBody').innerHTML = '<div class="log-line log-info">Starting...</div>';
+            await fetch('/testWCA/api/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type })
+            });
+            checkRunningStatus();
+        }
+
+        async function stopTests() {
+            if (!confirm("Stop current run?")) return;
+            await fetch('/testWCA/api/stop', { method: 'POST' });
+            checkRunningStatus();
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleBody').innerHTML = '<div class="log-line" style="opacity: 0.5;">Console cleared.</div>';
+        }
+
+        function createSuiteCard(name, info, suiteId) {
+            const status = info ? info.status : 'IDLE';
+            const statusClass = status.toLowerCase();
+            return `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">${name}</div>
+                        <span class="badge badge-${statusClass}">${status}</span>
+                    </div>
+                    <div style="margin-top: auto; display: flex; justify-content: flex-end;">
+                        <button class="btn btn-secondary btn-sm suite-run-btn" 
+                                onclick="runTests('${suiteId}')" 
+                                ${isRunning ? 'disabled' : ''}>
+                                RUN
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function updateDashboard() {
+            try {
+                const resp = await fetch('/testWCA/api/status');
+                const statusData = await resp.json();
+                const dashboard = document.getElementById('dashboard');
+
+                let html = '';
+                const suiteMapping = { 'backend': 'Backend', 'frontend': 'Frontend', 'security': 'Security (Backend)', 'load': 'Load', 'e2e': 'E2E' };
+
+                for (const suite of suites) {
+                    const runnerName = suiteMapping[suite.id] || suite.name;
+                    html += createSuiteCard(suite.name, statusData[runnerName], suite.id);
+                }
+                dashboard.innerHTML = html;
+            } catch (e) { }
+        }
+
+        async function updateLogs() {
+            try {
+                const resp = await fetch('/testWCA/api/logs');
+                const data = await resp.json();
+                if (data.logs && data.logs !== lastLogContent) {
+                    const consoleBody = document.getElementById('consoleBody');
+                    let formattedLogs = data.logs.split('\n').map(line => {
+                        let cls = '';
+                        if (line.includes('PASSED') || line.includes('✅')) cls = 'log-success';
+                        else if (line.includes('FAILED') || line.includes('❌') || line.includes('ERROR')) cls = 'log-error';
+                        return `<div class="log-line ${cls}">${escapeHtml(line)}</div>`;
+                    }).join('');
+                    consoleBody.innerHTML = formattedLogs;
+                    lastLogContent = data.logs;
+                    consoleBody.scrollTop = consoleBody.scrollHeight;
+                }
+            } catch (e) { }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        setInterval(() => {
+            updateDashboard();
+            checkRunningStatus();
+            updateLogs();
+        }, 1000);
+
+        updateDashboard();
+        checkRunningStatus();
+    </script>
+</body>
+
+</html>
