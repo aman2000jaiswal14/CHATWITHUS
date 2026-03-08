@@ -33,6 +33,7 @@ class LicensingService {
             if (licenseData['VALID UNTIL']) fields.push(`VALID UNTIL: ${licenseData['VALID UNTIL']}`);
             if (licenseData['LICENSE TYPE']) fields.push(`LICENSE TYPE: ${licenseData['LICENSE TYPE']}`);
             if (licenseData.MODULES) fields.push(`MODULES: ${licenseData.MODULES}`);
+            if (licenseData.MODULE_SELF_DESTRUCT) fields.push(`MODULE_SELF_DESTRUCT: ${licenseData.MODULE_SELF_DESTRUCT}`);
             if (licenseData.ALLOWED_CHARS) fields.push(`ALLOWED_CHARS: ${licenseData.ALLOWED_CHARS}`);
 
             const content = fields.join('\n');
@@ -97,6 +98,7 @@ class LicensingService {
                 expires_at: expiryStr,
                 provided_to: licenseData['PROVIDED TO'],
                 modules: licenseData.MODULES ? licenseData.MODULES.split(',') : [],
+                module_self_destruct: licenseData.MODULE_SELF_DESTRUCT === 'ENABLED',
                 allowedChars: licenseData.ALLOWED_CHARS || null
             };
 

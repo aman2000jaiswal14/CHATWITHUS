@@ -74,6 +74,8 @@ class Message(models.Model):
     message_type = models.IntegerField(default=0)  # 0: Text, 1: Audio, 2: Override, 4: System
     message_id = models.CharField(max_length=100, unique=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_expired = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['timestamp']
@@ -148,6 +150,8 @@ class MessageAttachment(models.Model):
     file_type = models.CharField(max_length=500)  # Increased for encrypted string
     file_size = models.IntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_expired = models.BooleanField(default=False)
 
     @property
     def decrypted_file_name(self):

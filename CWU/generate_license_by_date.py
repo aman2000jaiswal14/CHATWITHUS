@@ -44,8 +44,13 @@ ISSUED: {issued_at}
 VALID UNTIL: {expiry_date_str}
 LICENSE TYPE: {license_type}
 MODULES: {modules}
-ALLOWED_CHARS: {allowed_chars}
 """
+    # Dynamically add specific module flags if present in the comma-separated modules list
+    module_list = [m.strip().upper() for m in modules.split(',')]
+    if "SELFDESTRUCT" in module_list:
+        content += "MODULE_SELF_DESTRUCT: ENABLED\n"
+    
+    content += f"ALLOWED_CHARS: {allowed_chars}\n"
     
     data_bytes = content.strip().encode('utf-8')
     

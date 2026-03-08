@@ -26,14 +26,18 @@ class ChatGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('sender', 'recipient', 'group', 'message_type', 'content_preview', 'timestamp')
-    list_filter = ('timestamp', 'group', 'message_type')
+    list_display = ('sender', 'recipient', 'group', 'message_type', 'content_preview', 'expires_at', 'is_expired', 'timestamp')
+    list_filter = ('timestamp', 'group', 'message_type', 'is_expired')
     search_fields = ('sender__username', 'recipient__username', 'content')
     readonly_fields = ('timestamp',)
 
     def content_preview(self, obj):
-        return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
-    content_preview.short_description = 'Content'
+        try:
+            decrypted = obj.decrypted_content
+            return decrypted[:50] + '...' if len(decrypted) > 50 else decrypted
+        except:
+            return "[Encrypted/Error]"
+    content_preview.short_description = 'Content (Decrypted)'
 
 
 @admin.register(UserStatus)
@@ -52,6 +56,6 @@ class ChatReadCursorAdmin(admin.ModelAdmin):
 
 @admin.register(MessageAttachment)
 class MessageAttachmentAdmin(admin.ModelAdmin):
-    list_display = ('message', 'file_name', 'file_type', 'file_size', 'created_at')
-    list_filter = ('file_type', 'created_at')
+    list_display = ('message', 'file_name', 'file_type', 'file_size', 'expires_at', 'is_expired', 'created_at')
+    list_filter = ('file_type', 'created_at', 'is_expired')
     search_fields = ('file_name', 'message__message_id')

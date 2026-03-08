@@ -3,7 +3,7 @@ from chat.services.licensing import LicensingService
 
 def license_context(request):
     """Context processor to provide license info to all templates."""
-    license_info = LicensingService.get_license_info()
+    info = LicensingService.get_license_info()
     return {
-        'CWU_LICENSE_JSON': json.dumps(license_info) if license_info else "null"
+        'CWU_LICENSE_JSON': json.dumps(info) if info else 'null'
     }

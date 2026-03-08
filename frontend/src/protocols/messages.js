@@ -31,6 +31,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @property {number|Long|null} [receivedAt] ChatMessage receivedAt
          * @property {boolean|null} [isHighPriority] ChatMessage isHighPriority
          * @property {boolean|null} [isGroupMessage] ChatMessage isGroupMessage
+         * @property {number|null} [timerSeconds] ChatMessage timerSeconds
          * @property {wca_chat.ChatMessage.IAttachment|null} [attachment] ChatMessage attachment
          */
 
@@ -122,6 +123,14 @@ export const wca_chat = $root.wca_chat = (() => {
         ChatMessage.prototype.isGroupMessage = false;
 
         /**
+         * ChatMessage timerSeconds.
+         * @member {number} timerSeconds
+         * @memberof wca_chat.ChatMessage
+         * @instance
+         */
+        ChatMessage.prototype.timerSeconds = 0;
+
+        /**
          * ChatMessage attachment.
          * @member {wca_chat.ChatMessage.IAttachment|null|undefined} attachment
          * @memberof wca_chat.ChatMessage
@@ -173,6 +182,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 writer.uint32(/* id 9, wireType 0 =*/72).bool(message.isGroupMessage);
             if (message.attachment != null && Object.hasOwnProperty.call(message, "attachment"))
                 $root.wca_chat.ChatMessage.Attachment.encode(message.attachment, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
+            if (message.timerSeconds != null && Object.hasOwnProperty.call(message, "timerSeconds"))
+                writer.uint32(/* id 11, wireType 0 =*/88).int32(message.timerSeconds);
             return writer;
         };
 
@@ -243,6 +254,10 @@ export const wca_chat = $root.wca_chat = (() => {
                         message.isGroupMessage = reader.bool();
                         break;
                     }
+                case 11: {
+                        message.timerSeconds = reader.int32();
+                        break;
+                    }
                 case 10: {
                         message.attachment = $root.wca_chat.ChatMessage.Attachment.decode(reader, reader.uint32());
                         break;
@@ -299,6 +314,7 @@ export const wca_chat = $root.wca_chat = (() => {
                 case 1:
                 case 2:
                 case 3:
+                case 4:
                     break;
                 }
             if (message.payload != null && message.hasOwnProperty("payload"))
@@ -316,6 +332,9 @@ export const wca_chat = $root.wca_chat = (() => {
             if (message.isGroupMessage != null && message.hasOwnProperty("isGroupMessage"))
                 if (typeof message.isGroupMessage !== "boolean")
                     return "isGroupMessage: boolean expected";
+            if (message.timerSeconds != null && message.hasOwnProperty("timerSeconds"))
+                if (!$util.isInteger(message.timerSeconds))
+                    return "timerSeconds: integer expected";
             if (message.attachment != null && message.hasOwnProperty("attachment")) {
                 let error = $root.wca_chat.ChatMessage.Attachment.verify(message.attachment);
                 if (error)
@@ -365,6 +384,10 @@ export const wca_chat = $root.wca_chat = (() => {
             case 3:
                 message.type = 3;
                 break;
+            case "SYSTEM":
+            case 4:
+                message.type = 4;
+                break;
             }
             if (object.payload != null)
                 if (typeof object.payload === "string")
@@ -393,6 +416,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 message.isHighPriority = Boolean(object.isHighPriority);
             if (object.isGroupMessage != null)
                 message.isGroupMessage = Boolean(object.isGroupMessage);
+            if (object.timerSeconds != null)
+                message.timerSeconds = object.timerSeconds | 0;
             if (object.attachment != null) {
                 if (typeof object.attachment !== "object")
                     throw TypeError(".wca_chat.ChatMessage.attachment: object expected");
@@ -439,6 +464,7 @@ export const wca_chat = $root.wca_chat = (() => {
                 object.isHighPriority = false;
                 object.isGroupMessage = false;
                 object.attachment = null;
+                object.timerSeconds = 0;
             }
             if (message.messageId != null && message.hasOwnProperty("messageId"))
                 object.messageId = message.messageId;
@@ -466,6 +492,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 object.isGroupMessage = message.isGroupMessage;
             if (message.attachment != null && message.hasOwnProperty("attachment"))
                 object.attachment = $root.wca_chat.ChatMessage.Attachment.toObject(message.attachment, options);
+            if (message.timerSeconds != null && message.hasOwnProperty("timerSeconds"))
+                object.timerSeconds = message.timerSeconds;
             return object;
         };
 
@@ -503,6 +531,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @property {number} PTT=1 PTT value
          * @property {number} BROADCAST_ALERT=2 BROADCAST_ALERT value
          * @property {number} PRESENCE_UPDATE=3 PRESENCE_UPDATE value
+         * @property {number} SYSTEM=4 SYSTEM value
          */
         ChatMessage.MessageType = (function() {
             const valuesById = {}, values = Object.create(valuesById);
@@ -510,6 +539,7 @@ export const wca_chat = $root.wca_chat = (() => {
             values[valuesById[1] = "PTT"] = 1;
             values[valuesById[2] = "BROADCAST_ALERT"] = 2;
             values[valuesById[3] = "PRESENCE_UPDATE"] = 3;
+            values[valuesById[4] = "SYSTEM"] = 4;
             return values;
         })();
 

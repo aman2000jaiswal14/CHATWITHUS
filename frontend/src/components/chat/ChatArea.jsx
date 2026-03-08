@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause } from 'lucide-react';
+import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
 import { markRead, uploadAttachment } from '../../services/api';
@@ -292,8 +292,12 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
 
-    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat } = useChatStore();
+    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat, isSelfDestructEnabled } = useChatStore();
     const messages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
+
+    const [timerSeconds, setTimerSeconds] = useState(0); // 0 = default global policy
+    const [showTimerDropdown, setShowTimerDropdown] = useState(false);
+    const [, setTick] = useState(0); // Force re-render for expiration checks
 
     const scrollRef = useRef(null);
     const isPaginationScroll = useRef(false);
@@ -301,6 +305,12 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const [showExport, setShowExport] = useState(false);
     const [isFetchingHistory, setIsFetchingHistory] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
+
+    // Periodic tick to re-evaluate expired messages every 5 seconds
+    useEffect(() => {
+        const interval = setInterval(() => setTick(t => t + 1), 5000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Auto-scroll to bottom or retain scroll position
     useEffect(() => {
@@ -316,8 +326,9 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     // Handle Infinite Scroll
     const handleScroll = async (e) => {
         if (!e.target) return;
-        // Threshold prefetching: trigger when within 200px of the top
-        if (e.target.scrollTop <= 200 && hasMoreHistory && !isFetchingHistory) {
+        // Threshold prefetching: trigger when within 200px of the top.
+        // Also ensure messages.length > 0 to prevent redundant offset=0 calls on mount.
+        if (e.target.scrollTop <= 200 && messages.length > 0 && hasMoreHistory && !isFetchingHistory) {
             // Verify LAZYLOADING module is licensed
             const hasLazyLoading = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('LAZYLOADING');
             if (!hasLazyLoading) return;
@@ -393,9 +404,10 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         markRead(activeChatId, isGroupChat).catch(console.error);
 
         if (!fetchedChats.has(activeChatId)) {
+            setIsFetchingHistory(true);
             const config = window.CHAT_CONFIG || {};
             const baseUrl = config.API_BASE_URL || '';
-            const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}`;
+            const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=0`;
 
             fetch(url, {
                 headers: {
@@ -427,7 +439,9 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                             return {
                                 ...m,
                                 content: content,
-                                attachment: m.attachment
+                                attachment: m.attachment,
+                                is_expired: m.is_expired,
+                                expires_at: m.expires_at ? new Date(m.expires_at).getTime() : null
                             };
                         }));
                         setMessages(activeChatId, processed);
@@ -450,7 +464,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                                     content = await encryptionService.decrypt(e2eeCiphertext);
                                                 } catch (e) { content = m.payload; }
                                             }
-                                            return { ...m, content: content, attachment: m.attachment };
+                                            return { ...m, content: content, attachment: m.attachment, is_expired: m.is_expired, expires_at: m.expires_at ? new Date(m.expires_at).getTime() : null };
                                         }));
                                         loadMoreMessages(activeChatId, nextProcessed);
                                         if (nextData.messages.length < 12) setHasMoreHistory(false);
@@ -469,7 +483,8 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                         }
                     }
                 })
-                .catch(console.error);
+                .catch(console.error)
+                .finally(() => setIsFetchingHistory(false));
         } else {
             if (openedUnread > 0) {
                 setUnreadStartIdx(Math.max(0, messages.length - openedUnread));
@@ -493,9 +508,10 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
             };
         }
 
-        onSendMessage(inputText, attachment);
+        onSendMessage(inputText, attachment, timerSeconds);
         setInputText('');
         setPendingAttachment(null);
+        setTimerSeconds(0); // Reset to global policy after each send
     };
 
     const handleFileSelect = async (e) => {
@@ -568,7 +584,8 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                         type: attachmentResult.type,
                         url: attachmentResult.url,
                         size: attachmentResult.size
-                    });
+                    }, timerSeconds);
+                    setTimerSeconds(0); // Reset after voice message
                 } catch (err) {
                     console.error("Voice message upload failed:", err);
                     alert("Failed to send voice message");
@@ -839,6 +856,10 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                     const isOwn = String(msg.senderId).toLowerCase() === String(currentUser).toLowerCase();
                     const isUnread = unreadStartIdx !== null && idx >= unreadStartIdx && !isOwn;
                     const showBanner = unreadStartIdx !== null && idx === unreadStartIdx;
+                    
+                    // Check if message is expired
+                    const now = Date.now();
+                    const isExpired = msg.is_expired || (msg.expires_at && now > msg.expires_at);
 
                     return (
                         <React.Fragment key={msg.messageId || idx}>
@@ -865,27 +886,42 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                     <div className="flex items-baseline gap-1.5 mb-0.5">
                                         <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : 'text-emerald-500'}`}>{isOwn ? 'ME' : msg.senderId}</span>
                                         <span className="text-[9px] text-slate-600 font-mono">{formatTime(msg.sentAt)}</span>
+                                        {msg.timerSeconds > 0 && !isExpired && (
+                                            <span className="text-[9px] text-amber-400 font-mono flex items-center gap-0.5">
+                                                <Timer size={9} /> {msg.timerSeconds >= 3600 ? `${Math.floor(msg.timerSeconds/3600)}h` : msg.timerSeconds >= 60 ? `${Math.floor(msg.timerSeconds/60)}m` : `${msg.timerSeconds}s`}
+                                            </span>
+                                        )}
                                     </div>
                                     <div className={`px-3 py-2 rounded-lg text-sm transition-all duration-300
-                                        ${isUnread
-                                            ? 'bg-amber-900/20 border border-amber-500/40 text-amber-50 ring-1 ring-amber-500/30'
-                                            : msg.isHighPriority
-                                                ? 'bg-red-900/50 border border-red-500 text-red-100'
-                                                : msg.type === 1
-                                                    ? 'bg-transparent text-slate-200' // No border or background for native audio payloads
-                                                    : isOwn
-                                                        ? 'bg-emerald-900/20 border border-emerald-700 text-slate-100 shadow-sm'
-                                                        : 'bg-[#1e293b] border border-slate-700 text-slate-200 shadow-sm'
+                                        ${isExpired
+                                            ? 'bg-slate-800/30 border border-slate-700/50 text-slate-500'
+                                            : isUnread
+                                                ? 'bg-amber-900/20 border border-amber-500/40 text-amber-50 ring-1 ring-amber-500/30'
+                                                : msg.timerSeconds > 0
+                                                    ? 'bg-amber-900/15 border border-amber-600/40 text-amber-50 shadow-sm shadow-amber-900/20'
+                                                    : msg.isHighPriority
+                                                        ? 'bg-red-900/50 border border-red-500 text-red-100'
+                                                        : msg.type === 1
+                                                            ? 'bg-transparent text-slate-200'
+                                                            : isOwn
+                                                                ? 'bg-emerald-900/20 border border-emerald-700 text-slate-100 shadow-sm'
+                                                                : 'bg-[#1e293b] border border-slate-700 text-slate-200 shadow-sm'
                                         }`}>
-                                        {(msg.type === 0 || msg.type === 1) && msg.content && (
+                                        {(msg.type === 0 || msg.type === 1) && msg.content && !isExpired && (
                                             <div className="break-words mb-1 overflow-x-hidden">
                                                 {(!license?.modules || license.modules.includes('MARKDOWN'))
                                                     ? renderFormattedContent(msg.content)
                                                     : <span>{msg.content}</span>}
                                             </div>
                                         )}
-                                        {renderAttachment(msg.attachment)}
-                                        {msg.type === 2 && (
+                                        {isExpired ? (
+                                            <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 italic py-1 px-2 border border-slate-700/50 bg-slate-800/30 rounded">
+                                                <Timer size={12} /> MSG TIME EXPIRES
+                                            </div>
+                                        ) : (
+                                            renderAttachment(msg.attachment)
+                                        )}
+                                        {msg.type === 2 && !isExpired && (
                                             <div className="flex items-center gap-2 font-bold uppercase text-red-400">
                                                 <ShieldAlert className="w-4 h-4" />
                                                 <span className="text-xs">COMMANDER OVERRIDE</span>
@@ -932,6 +968,40 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                 )}
 
                 <div className="flex items-center gap-1 bg-[#1e293b] rounded-lg p-1.5 border border-slate-700 focus-within:border-emerald-800 transition-colors">
+                    {/* Timer Dropdown */}
+                    {isSelfDestructEnabled && (
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowTimerDropdown(!showTimerDropdown)}
+                                className={`p-1.5 rounded-md transition-colors ${timerSeconds > 0 ? 'text-amber-400 bg-amber-400/10' : 'text-slate-400 hover:text-white'}`}
+                                title={timerSeconds > 0 ? `Self-destruct: ${timerSeconds}s` : 'Global Policy'}
+                            >
+                                <Timer className="w-4 h-4" />
+                            </button>
+                            {showTimerDropdown && (
+                                <div className="absolute bottom-full left-0 mb-2 w-36 bg-[#0f172a] border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50">
+                                    <div className="text-[10px] font-bold tracking-widest text-slate-500 px-3 py-2 border-b border-slate-700/50 bg-slate-800/30">TIMER</div>
+                                    {[
+                                        { label: 'Global Policy', val: 0 },
+                                        { label: '10 Seconds', val: 10 },
+                                        { label: '1 Minute', val: 60 },
+                                        { label: '5 Minutes', val: 300 },
+                                        { label: '1 Hour', val: 3600 }
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.val}
+                                            className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${timerSeconds === opt.val ? 'bg-emerald-600/20 text-emerald-400' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+                                            onClick={() => { setTimerSeconds(opt.val); setShowTimerDropdown(false); }}
+                                        >
+                                            {opt.label}
+                                            {timerSeconds === opt.val && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}

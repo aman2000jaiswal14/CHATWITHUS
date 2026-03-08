@@ -22,6 +22,7 @@ message ChatMessage {
     
     bool is_high_priority = 8;
     bool is_group_message = 9; // Determines if target_id is a group or user
+    int32 timer_seconds = 11; // 0 for global default, >0 for override
 
     message Attachment {
         string id = 1;

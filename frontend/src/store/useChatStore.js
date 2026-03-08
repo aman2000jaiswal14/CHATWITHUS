@@ -15,9 +15,11 @@ export const useChatStore = create((set, get) => ({
     lastOpenedUnread: 0,  // Snapshot of unread count when chat was opened
     isRegistered: true,
     isMuted: true,
+    isSelfDestructEnabled: false,
 
     setIsRegistered: (val) => set({ isRegistered: val }),
     setIsMuted: (val) => set({ isMuted: val }),
+    setIsSelfDestructEnabled: (val) => set({ isSelfDestructEnabled: val }),
 
     setActiveChat: (chatId, isGroup) => set((state) => {
         const lowerId = String(chatId).toLowerCase();

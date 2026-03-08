@@ -243,11 +243,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Persist a protobuf ChatMessage to the database."""
         from django.contrib.auth import get_user_model
         from .models import Message as DBMessage, ChatGroup, MessageAttachment
+        from django.conf import settings
+        from django.utils import timezone
+        import datetime
         User = get_user_model()
 
         try:
             sender = User.objects.get(username=message.sender_id)
             content = message.payload.decode('utf-8', errors='replace')
+            
+            # Module 1: Self-Destruct Timers
+            expires_at = None
+            if hasattr(message, 'timer_seconds') and message.timer_seconds > 0:
+                expires_at = timezone.now() + datetime.timedelta(seconds=message.timer_seconds)
+            else:
+                expires_at = timezone.now() + datetime.timedelta(seconds=settings.GLOBAL_MESSAGE_EXPIRATION_SECONDS)
 
             if message.is_group_message:
                 try:
@@ -258,6 +268,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'sender': sender,
                             'group': group,
                             'content': content,
+                            'expires_at': expires_at,
                         }
                     )
                     # Handle attachment
@@ -269,6 +280,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                                 'file': message.attachment.url.replace('/media/', ''),
                                 'file_type': message.attachment.type,
                                 'file_size': message.attachment.size,
+                                'expires_at': expires_at,
                             }
                         )
                 except (ChatGroup.DoesNotExist, ValueError):
@@ -282,6 +294,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'sender': sender,
                             'recipient': recipient,
                             'content': content,
+                            'expires_at': expires_at,
                         }
                     )
                     # Handle attachment
@@ -293,6 +306,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                                 'file': message.attachment.url.replace('/media/', ''),
                                 'file_type': message.attachment.type,
                                 'file_size': message.attachment.size,
+                                'expires_at': expires_at,
                             }
                         )
                 except User.DoesNotExist:

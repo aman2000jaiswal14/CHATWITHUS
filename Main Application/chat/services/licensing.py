@@ -46,17 +46,7 @@ class LicensingService:
                     elif ": " in line:
                         content_lines.append(line)
                         key, val = line.split(": ", 1)
-                        if key == "PRODUCT": license_data["PRODUCT"] = val
-                        elif key == "PROJECT": license_data["PROJECT"] = val
-                        elif key == "VERSION": license_data["VERSION"] = val
-                        elif key == "DESCRIPTION": license_data["DESCRIPTION"] = val
-                        elif key == "COMPANY": license_data["COMPANY"] = val
-                        elif key == "PROVIDED TO": license_data["PROVIDED TO"] = val
-                        elif key == "ISSUED": license_data["ISSUED"] = val
-                        elif key == "VALID UNTIL": license_data["VALID UNTIL"] = val
-                        elif key == "LICENSE TYPE": license_data["LICENSE TYPE"] = val
-                        elif key == "MODULES": license_data["MODULES"] = val
-                        elif key == "ALLOWED_CHARS": license_data["ALLOWED_CHARS"] = val
+                        license_data[key] = val
 
             if not signature_b64 or not license_data:
                 return {"error": "Incomplete license data"}

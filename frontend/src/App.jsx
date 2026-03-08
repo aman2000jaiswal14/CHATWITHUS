@@ -15,7 +15,7 @@ import LicensingService from './services/LicensingService';
 
 function App() {
   const { messagesByChat, activeChatId, isGroupChat, currentView, lastOpenedUnread,
-    isRegistered, setIsRegistered, isMuted, setIsMuted,
+    isRegistered, setIsRegistered, isMuted, setIsMuted, isSelfDestructEnabled, setIsSelfDestructEnabled,
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
@@ -31,6 +31,7 @@ function App() {
       window.CWU_VERIFIED_MODULES = result.modules || [];
       if (result.valid) {
         encryptionService.preDeriveKey();
+        setIsSelfDestructEnabled(result.module_self_destruct === true);
       }
       setLicenseState({ loading: false, valid: !!result.valid, ...result });
     });
@@ -63,7 +64,7 @@ function App() {
     setCurrentView('contacts');
   };
 
-  const handleSendMessage = (text, attachment = null) => {
+  const handleSendMessage = (text, attachment = null, timerSeconds = 0) => {
     if (!activeChatId) return;
     const wsClient = WebSocketClient.getInstance();
 
@@ -73,7 +74,7 @@ function App() {
       msgType = 1; // PTT
     }
 
-    wsClient.sendMessage(activeChatId, text, isGroupChat, msgType, attachment);
+    wsClient.sendMessage(activeChatId, text, isGroupChat, msgType, attachment, timerSeconds);
   };
 
   if (!isRegistered) {

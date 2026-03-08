@@ -517,26 +517,52 @@ def api_chat_history(request, chat_id):
     history = messages.order_by('-timestamp').prefetch_related('attachments')[offset:offset+limit]
     data = []
     for msg in reversed(history):
+        # Compute is_expired dynamically
+        from django.utils import timezone
+        now = timezone.now()
+        expired = msg.is_expired or (msg.expires_at is not None and now >= msg.expires_at)
+        
+        # Auto-scrub expired messages on access (lazy cleanup)
+        if expired and not msg.is_expired:
+            msg.content = "Msg time expires"
+            msg.is_expired = True
+            msg.save(update_fields=['content', 'is_expired'])
+            # Delete attachment files from disk
+            for att in msg.attachments.all():
+                if not att.is_expired:
+                    if att.file:
+                        try:
+                            att.file.delete(save=False)
+                        except Exception:
+                            pass
+                    att.file_name = "Msg time expires"
+                    att.file_type = "expired"
+                    att.is_expired = True
+                    att.save()
+        
         msg_dict = {
             'messageId': msg.message_id,
             'senderId': msg.sender.username,
             'targetId': chat_id,
             'isGroupMessage': is_group,
             'type': msg.message_type,
-            'payload': msg.decrypted_content.encode('utf-8').hex(),
-            'sentAt': int(msg.timestamp.timestamp() * 1000)
+            'payload': msg.decrypted_content.encode('utf-8').hex() if not expired else '',
+            'sentAt': int(msg.timestamp.timestamp() * 1000),
+            'expires_at': int(msg.expires_at.timestamp() * 1000) if msg.expires_at else None,
+            'is_expired': expired,
         }
         
-        # Attach attachment if exists
-        att = msg.attachments.first()
-        if att:
-            msg_dict['attachment'] = {
-                'id': str(att.id),
-                'name': att.decrypted_file_name,
-                'type': att.decrypted_file_type,
-                'url': att.file.url,
-                'size': att.file_size,
-            }
+        # Only attach attachment data if message is NOT expired
+        if not expired:
+            att = msg.attachments.first()
+            if att:
+                msg_dict['attachment'] = {
+                    'id': str(att.id),
+                    'name': att.decrypted_file_name,
+                    'type': att.decrypted_file_type,
+                    'url': att.file.url if att.file else '',
+                    'size': att.file_size,
+                }
         data.append(msg_dict)
         
     return JsonResponse({'messages': data})

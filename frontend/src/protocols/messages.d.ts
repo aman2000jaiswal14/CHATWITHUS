@@ -32,6 +32,12 @@ export namespace wca_chat {
 
         /** ChatMessage isGroupMessage */
         isGroupMessage?: (boolean|null);
+
+        /** ChatMessage attachment */
+        attachment?: (wca_chat.ChatMessage.IAttachment|null);
+
+        /** ChatMessage expiresAt */
+        expiresAt?: (number|Long|null);
     }
 
     /** Represents a ChatMessage. */
@@ -69,6 +75,12 @@ export namespace wca_chat {
 
         /** ChatMessage isGroupMessage. */
         public isGroupMessage: boolean;
+
+        /** ChatMessage attachment. */
+        public attachment?: (wca_chat.ChatMessage.IAttachment|null);
+
+        /** ChatMessage expiresAt. */
+        public expiresAt: (number|Long);
 
         /**
          * Creates a new ChatMessage instance using the specified properties.
@@ -155,7 +167,129 @@ export namespace wca_chat {
             TEXT = 0,
             PTT = 1,
             BROADCAST_ALERT = 2,
-            PRESENCE_UPDATE = 3
+            PRESENCE_UPDATE = 3,
+            SYSTEM = 4
+        }
+
+        /** Properties of an Attachment. */
+        interface IAttachment {
+
+            /** Attachment id */
+            id?: (string|null);
+
+            /** Attachment name */
+            name?: (string|null);
+
+            /** Attachment type */
+            type?: (string|null);
+
+            /** Attachment url */
+            url?: (string|null);
+
+            /** Attachment size */
+            size?: (number|null);
+        }
+
+        /** Represents an Attachment. */
+        class Attachment implements IAttachment {
+
+            /**
+             * Constructs a new Attachment.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: wca_chat.ChatMessage.IAttachment);
+
+            /** Attachment id. */
+            public id: string;
+
+            /** Attachment name. */
+            public name: string;
+
+            /** Attachment type. */
+            public type: string;
+
+            /** Attachment url. */
+            public url: string;
+
+            /** Attachment size. */
+            public size: number;
+
+            /**
+             * Creates a new Attachment instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns Attachment instance
+             */
+            public static create(properties?: wca_chat.ChatMessage.IAttachment): wca_chat.ChatMessage.Attachment;
+
+            /**
+             * Encodes the specified Attachment message. Does not implicitly {@link wca_chat.ChatMessage.Attachment.verify|verify} messages.
+             * @param message Attachment message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: wca_chat.ChatMessage.IAttachment, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified Attachment message, length delimited. Does not implicitly {@link wca_chat.ChatMessage.Attachment.verify|verify} messages.
+             * @param message Attachment message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: wca_chat.ChatMessage.IAttachment, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an Attachment message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns Attachment
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): wca_chat.ChatMessage.Attachment;
+
+            /**
+             * Decodes an Attachment message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns Attachment
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): wca_chat.ChatMessage.Attachment;
+
+            /**
+             * Verifies an Attachment message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an Attachment message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns Attachment
+             */
+            public static fromObject(object: { [k: string]: any }): wca_chat.ChatMessage.Attachment;
+
+            /**
+             * Creates a plain object from an Attachment message. Also converts values to other types if specified.
+             * @param message Attachment
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: wca_chat.ChatMessage.Attachment, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this Attachment to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for Attachment
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
         }
     }
 

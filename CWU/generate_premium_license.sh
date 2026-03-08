@@ -14,7 +14,7 @@ else
 fi
 
 CUSTOMER="Premium Tier Client"
-MODULES="VOICE,MARKDOWN,E2E,NOTIFICATIONS,LAZYLOADING"
+MODULES="VOICE,MARKDOWN,E2E,NOTIFICATIONS,LAZYLOADING,SELFDESTRUCT"
 ALLOWED_CHARS="^[A-Za-z0-9\s.,!?'\"@_\-+*~\\\\\`{}()<>[\]]+$"
 
 echo "Generating Premium License..."
