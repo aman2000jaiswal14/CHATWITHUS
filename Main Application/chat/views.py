@@ -280,6 +280,30 @@ def api_groups(request):
             'last_message_at': int(last_msg_at.timestamp() * 1000) if last_msg_at else 0
         })
 
+    # Inject virtual Emergency Broadcast group if licensed
+    from .services.licensing import LicensingService
+    license_info = LicensingService.get_license_info()
+    modules = license_info.get('MODULES', '') if license_info else ''
+    if 'EMERGENCY_BROADCAST' in modules:
+        emergency_cursor = ChatReadCursor.objects.filter(user=user, chat_id='emergency', is_group=True).first()
+        if emergency_cursor:
+            emergency_unread = Message.objects.filter(is_emergency_broadcast=True, timestamp__gt=emergency_cursor.last_read_at).exclude(sender=user).count()
+        else:
+            emergency_unread = Message.objects.filter(is_emergency_broadcast=True).exclude(sender=user).count()
+        
+        # Latest emergency message timestamp
+        last_e_msg = Message.objects.filter(is_emergency_broadcast=True).aggregate(Max('timestamp'))['timestamp__max']
+        
+        result.append({
+            'id': 'emergency',
+            'name': 'EMERGENCY BROADCAST',
+            'creator': 'System',
+            'member_count': User.objects.count(),
+            'is_admin': False,
+            'unread_count': emergency_unread,
+            'last_message_at': int(last_e_msg.timestamp() * 1000) if last_e_msg else 0
+        })
+
     return JsonResponse({'groups': result})
 
 
@@ -486,13 +510,17 @@ def api_chat_history(request, chat_id):
     from django.db.models import Q
     
     if is_group:
-        try:
-            group = ChatGroup.objects.get(id=chat_id)
-            if not group.members.filter(id=user.id).exists():
-                return JsonResponse({'error': 'not a member'}, status=403)
-            messages = Message.objects.filter(group=group)
-        except ChatGroup.DoesNotExist:
-            return JsonResponse({'error': 'group not found'}, status=404)
+        if chat_id == 'emergency':
+            # Emergency broadcast is a virtual group — query by flag
+            messages = Message.objects.filter(is_emergency_broadcast=True)
+        else:
+            try:
+                group = ChatGroup.objects.get(id=chat_id)
+                if not group.members.filter(id=user.id).exists():
+                    return JsonResponse({'error': 'not a member'}, status=403)
+                messages = Message.objects.filter(group=group)
+            except ChatGroup.DoesNotExist:
+                return JsonResponse({'error': 'group not found'}, status=404)
     else:
         messages = Message.objects.filter(
             (Q(sender=user) & Q(recipient__username=chat_id)) |
@@ -813,19 +841,26 @@ def api_mark_read(request):
     user = get_authenticated_user(request)
     if not user:
         return JsonResponse({'error': 'unauthorized'}, status=401)
-    data = json.loads(request.body)
+    
+    try:
+        data = json.loads(request.body)
+    except Exception as je:
+        return JsonResponse({'error': f'Invalid JSON: {str(je)}'}, status=400)
+        
     chat_id = data.get('chat_id', '').strip()
     is_group = data.get('is_group', False)
     if not chat_id:
         return JsonResponse({'error': 'chat_id required'}, status=400)
 
-    from django.utils import timezone
-    ChatReadCursor.objects.update_or_create(
+    # Simplified logic to avoid auto_now conflicts
+    cursor, created = ChatReadCursor.objects.get_or_create(
         user=user,
         chat_id=chat_id,
-        is_group=is_group,
-        defaults={'last_read_at': timezone.now()}
+        is_group=is_group
     )
+    if not created:
+        cursor.save() # Triggers auto_now update
+        
     return JsonResponse({'status': 'ok'})
 
 

@@ -50,8 +50,8 @@ python3 license_generator.py
 Usage: `python3 generate_license_by_date.py <customer_name> <expiry_date_YYYY-MM-DD> [type]`
 
 ```bash
-# Example: Generate a Premium license for 'Aman' expiring on Dec 31, 2026
-python3 generate_license_by_date.py "Aman Jaiswal" 2026-12-31 PREMIUM
+# Example: Generate a Premium license for 'Aman' expiring on Dec 31, 2026 with an additional module
+python3 generate_license_by_date.py "Aman Jaiswal" 2026-12-31 PREMIUM,EMERGENCY_BROADCAST
 ```
 
 ### Step 3: Locate the License File

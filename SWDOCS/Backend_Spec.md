@@ -28,7 +28,7 @@ The system uses a unified `ProtocolWrapper` to encapsulate different types of me
     - **`chat_message` handle**: 
         - Extracts message metadata.
         - Persists encrypted payload to `Message` model.
-        - Routes to `group_{target_id}` (for groups) or `user_{target_id}` (for DMs).
+        - Routes to `group_{target_id}` (for groups), `user_{target_id}` (for DMs), or broadcast identically to `all_users` (for Emergency Broadcasts).
     - **`command` handle**: Dynamically joins or leaves Redis channel groups.
     - **`disconnect`**: Broadcasts "Offline" status and clears group subscriptions.
 
@@ -36,6 +36,7 @@ The system uses a unified `ProtocolWrapper` to encapsulate different types of me
 
 ### `Message`
 - Persists encrypted message content and metadata.
+- **Flags**: `is_expired` for self-destruct timers and `is_emergency_broadcast` for identifying broad alerts.
 - **Encryption at Rest**: The `save()` method automatically encrypts content before writing to the database using `encryption_service`.
 - **Decryption Property**: `decrypted_content` allows server-side decryption if the server holds the necessary keys.
 

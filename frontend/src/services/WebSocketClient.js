@@ -120,6 +120,12 @@ class WebSocketClient {
                 useChatStore.getState().addMessage(chatId, msg);
 
                 const isMine = String(msg.senderId).toLowerCase() === String(this.userId).toLowerCase();
+
+                // Check for Emergency Broadcast
+                if (String(msg.targetId).toUpperCase() === 'EMERGENCY' && !isMine) {
+                    useChatStore.getState().setIsEmergencyAlertActive(true);
+                }
+
                 const isMuted = useChatStore.getState().isMuted;
                 if (!isMine && !isMuted) {
                     this.playNotificationSound();
@@ -230,6 +236,9 @@ class WebSocketClient {
 
     shouldRefresh(msg) {
         const state = useChatStore.getState();
+        const isMine = String(msg.senderId).toLowerCase() === String(this.userId).toLowerCase();
+        if (isMine) return false;
+
         if (msg.isGroupMessage) {
             return !state.groups.some(g => String(g.id).toLowerCase() === String(msg.targetId).toLowerCase());
         } else {

@@ -292,7 +292,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
 
-    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat, isSelfDestructEnabled } = useChatStore();
+    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat, isSelfDestructEnabled, isEmergencyAlertActive, setIsEmergencyAlertActive } = useChatStore();
     const messages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
 
     const [timerSeconds, setTimerSeconds] = useState(0); // 0 = default global policy
@@ -305,6 +305,13 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const [showExport, setShowExport] = useState(false);
     const [isFetchingHistory, setIsFetchingHistory] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
+
+    // Clear emergency alert when chat is opened
+    useEffect(() => {
+        if (activeChatId === 'emergency') {
+            setIsEmergencyAlertActive(false);
+        }
+    }, [activeChatId, setIsEmergencyAlertActive]);
 
     // Periodic tick to re-evaluate expired messages every 5 seconds
     useEffect(() => {
@@ -400,9 +407,6 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         setHasMoreHistory(true);
         setIsFetchingHistory(false);
 
-        // Mark as read in backend
-        markRead(activeChatId, isGroupChat).catch(console.error);
-
         if (!fetchedChats.has(activeChatId)) {
             setIsFetchingHistory(true);
             const config = window.CHAT_CONFIG || {};
@@ -492,7 +496,24 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                 setUnreadStartIdx(null);
             }
         }
-    }, [activeChatId, isGroupChat, fetchedChats.has(activeChatId)]);
+    }, [activeChatId, isGroupChat, fetchedChats, setMessages, loadMoreMessages, openedUnread, messages.length]);
+
+    // Consolidated effect for marking as read with debounce to prevent duplicate calls on load
+    useEffect(() => {
+        if (!activeChatId) return;
+        
+        const timer = setTimeout(() => {
+            markRead(activeChatId, isGroupChat).catch(console.error);
+        }, 300);
+        
+        const handleFocus = () => markRead(activeChatId, isGroupChat).catch(console.error);
+        window.addEventListener('focus', handleFocus);
+        
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [activeChatId, isGroupChat, messages.length]);
 
     const handleSend = async () => {
         if (!inputText.trim() && !pendingAttachment) return;
@@ -685,7 +706,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         return <DecryptedFile url={absoluteUrl} name={att.name} size={att.size} />;
     };
 
-    const formatTime = (timestamp) => {
+    const formatTimeShort = (timestamp) => {
         if (!timestamp) return '';
         const date = new Date(Number(timestamp));
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -693,9 +714,6 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
 
     const renderFormattedContent = (content) => {
         if (!content) return '';
-
-        // Safely parse markdown by splitting text into tokens instead of using dangerouslySetInnerHTML
-        // Token format: { type: 'text'|'mention'|'bold'|'italic'|'strike'|'code'|'pre', content: string }
 
         let tokens = [{ type: 'text', content: content }];
 
@@ -723,17 +741,11 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
             tokens = newTokens;
         };
 
-        // 1. Code blocks ```code```
         applyRule(/```([\s\S]*?)```/g, 'pre');
-        // 2. Inline code `code`
         applyRule(/`([^`]+)`/g, 'code');
-        // 3. Bold *bold*
         applyRule(/\*([^*\n]+)\*/g, 'bold');
-        // 4. Italic _italic_
         applyRule(/_([^\_\n]+)_/g, 'italic');
-        // 5. Strike ~strike~
         applyRule(/~([^~\n]+)~/g, 'strike');
-        // 6. Mentions @username
         applyRule(/(@\w+)/g, 'mention');
 
         return tokens.map((token, i) => {
@@ -760,8 +772,15 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         });
     };
 
+    const isEmergency = activeChatId === 'emergency';
+    const userRole = window.CHAT_CONFIG?.USER_ROLE || 'User';
+    const canSendToEmergency = userRole === 'Commander';
+    const isSendingRestricted = isEmergency && !canSendToEmergency;
+
     let chatName = activeChatId || "SECURE CHANNEL";
-    if (isGroupChat) {
+    if (isEmergency) {
+        chatName = "EMERGENCY BROADCAST";
+    } else if (isGroupChat) {
         const group = groups.find(g => String(g.id) === activeChatId);
         if (group) chatName = group.name;
     } else {
@@ -770,15 +789,18 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     }
 
     return (
-        <div className="flex-1 flex flex-col bg-[#0b1121] text-gray-200 h-full">
+        <div className={`flex-1 flex flex-col text-gray-200 h-full ${isEmergency ? 'bg-[#1a0505]' : 'bg-[#0b1121]'}`}>
             {/* Header */}
-            <div className="h-14 border-b border-slate-800 flex items-center px-3 gap-2 bg-[#0f172a] shadow-sm z-10 flex-shrink-0">
-                <button onClick={onBack} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded-md hover:bg-slate-800">
+            <div className={`h-14 border-b flex items-center px-3 gap-2 shadow-sm z-10 flex-shrink-0 ${isEmergency ? 'bg-[#2a0808] border-red-900/50' : 'bg-[#0f172a] border-slate-800'}`}>
+                <button onClick={onBack} className={`p-1.5 transition-colors rounded-md ${isEmergency ? 'text-red-400 hover:bg-red-900/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                     <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="min-w-0 flex-1">
-                    <span className="font-semibold tracking-wide uppercase text-sm block truncate">{chatName}</span>
-                    {!isGroupChat && (
+                    <div className="flex items-center gap-2">
+                        <span className={`font-semibold tracking-wide uppercase text-sm block truncate ${isEmergency ? 'text-red-500 font-black animate-pulse' : ''}`}>{chatName}</span>
+                        {isEmergency && <ShieldAlert className="w-4 h-4 text-red-500 animate-bounce" />}
+                    </div>
+                    {!isEmergency && !isGroupChat && (
                         <div className="flex items-center gap-2">
                             <span className={`text-[10px] font-mono ${presence[activeChatId]?.is_online ? 'text-emerald-400' : 'text-slate-500'}`}>
                                 {presence[activeChatId]?.is_online ? 'ONLINE' : 'OFFLINE'}
@@ -793,9 +815,12 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                             )}
                         </div>
                     )}
+                    {isEmergency && (
+                        <p className="text-[9px] text-red-500/70 font-bold uppercase tracking-widest">Priority Broadcast Channel</p>
+                    )}
                 </div>
                 <div className="flex gap-1 items-center">
-                    {isGroupChat && (
+                    {!isEmergency && isGroupChat && (
                         <button
                             onClick={() => setCurrentView('group_members')}
                             className="p-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-slate-800 rounded-md transition-colors"
@@ -807,13 +832,13 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
 
                     <button
                         onClick={() => setShowExport(true)}
-                        className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors"
+                        className={`p-1.5 rounded-md transition-colors ${isEmergency ? 'text-red-400 hover:bg-red-900/30' : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800'}`}
                         title="Export History"
                     >
                         <Download className="w-4 h-4" />
                     </button>
 
-                    {isGroupChat && (
+                    {!isEmergency && isGroupChat && (
                         <button
                             onClick={() => setCurrentView('group_settings')}
                             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
@@ -825,14 +850,11 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                 </div>
             </div>
 
-
-
             <div
                 ref={scrollRef}
                 onScroll={handleScroll}
                 className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar"
             >
-                {/* Lazy Loading Banners moved inside scrollable area */}
                 <div className="pt-2">
                     {isFetchingHistory && (
                         <div className="flex justify-center mb-4">
@@ -856,8 +878,6 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                     const isOwn = String(msg.senderId).toLowerCase() === String(currentUser).toLowerCase();
                     const isUnread = unreadStartIdx !== null && idx >= unreadStartIdx && !isOwn;
                     const showBanner = unreadStartIdx !== null && idx === unreadStartIdx;
-                    
-                    // Check if message is expired
                     const now = Date.now();
                     const isExpired = msg.is_expired || (msg.expires_at && now > msg.expires_at);
 
@@ -884,23 +904,23 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                             ) : (
                                 <div className={`flex flex-col max-w-[85%] ${isOwn ? 'self-end ml-auto' : 'self-start mr-auto'}`}>
                                     <div className="flex items-baseline gap-1.5 mb-0.5">
-                                        <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : 'text-emerald-500'}`}>{isOwn ? 'ME' : msg.senderId}</span>
-                                        <span className="text-[9px] text-slate-600 font-mono">{formatTime(msg.sentAt)}</span>
+                                        <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : (isEmergency ? 'text-red-500' : 'text-emerald-500')}`}>{isOwn ? 'ME' : msg.senderId}</span>
+                                        <span className="text-[9px] text-slate-600 font-mono">{formatTimeShort(msg.sentAt)}</span>
                                         {msg.timerSeconds > 0 && !isExpired && (
                                             <span className="text-[9px] text-amber-400 font-mono flex items-center gap-0.5">
-                                                <Timer size={9} /> {msg.timerSeconds >= 3600 ? `${Math.floor(msg.timerSeconds/3600)}h` : msg.timerSeconds >= 60 ? `${Math.floor(msg.timerSeconds/60)}m` : `${msg.timerSeconds}s`}
+                                                <Timer size={9} /> {msg.timerSeconds >= 3600 ? `${Math.floor(msg.timerSeconds / 3600)}h` : msg.timerSeconds >= 60 ? `${Math.floor(msg.timerSeconds / 60)}m` : `${msg.timerSeconds}s`}
                                             </span>
                                         )}
                                     </div>
                                     <div className={`px-3 py-2 rounded-lg text-sm transition-all duration-300
-                                        ${isExpired
+                                            ${isExpired
                                             ? 'bg-slate-800/30 border border-slate-700/50 text-slate-500'
                                             : isUnread
                                                 ? 'bg-amber-900/20 border border-amber-500/40 text-amber-50 ring-1 ring-amber-500/30'
                                                 : msg.timerSeconds > 0
                                                     ? 'bg-amber-900/15 border border-amber-600/40 text-amber-50 shadow-sm shadow-amber-900/20'
-                                                    : msg.isHighPriority
-                                                        ? 'bg-red-900/50 border border-red-500 text-red-100'
+                                                    : msg.isHighPriority || isEmergency
+                                                        ? 'bg-red-900/50 border border-red-500 text-red-100 ring-1 ring-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
                                                         : msg.type === 1
                                                             ? 'bg-transparent text-slate-200'
                                                             : isOwn
@@ -921,10 +941,10 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                         ) : (
                                             renderAttachment(msg.attachment)
                                         )}
-                                        {msg.type === 2 && !isExpired && (
-                                            <div className="flex items-center gap-2 font-bold uppercase text-red-400">
-                                                <ShieldAlert className="w-4 h-4" />
-                                                <span className="text-xs">COMMANDER OVERRIDE</span>
+                                        {(msg.type === 2 || isEmergency) && !isExpired && (
+                                            <div className="flex items-center gap-2 font-bold uppercase text-red-400 mt-1 pt-1 border-t border-red-500/20">
+                                                <ShieldAlert className="w-4 h-4 animate-pulse" />
+                                                <span className="text-[10px] tracking-tighter">EMERGENCY BROADCAST</span>
                                             </div>
                                         )}
                                     </div>
@@ -935,131 +955,139 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                 })}
             </div>
 
-            {/* Input Area */}
-            <div className="p-2 bg-[#0f172a] border-t border-slate-800 flex-shrink-0">
-                {pendingAttachment && pendingAttachment.url && (
-                    <div className="mb-2 flex items-center gap-2 p-2 bg-slate-800 border border-slate-700 rounded-lg animate-in fade-in slide-in-from-bottom-2">
-                        <div className="p-1.5 bg-slate-900 rounded-md text-emerald-400">
-                            {pendingAttachment.type?.startsWith('image/') ? <ImageIcon size={14} /> : <FileText size={14} />}
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-300 flex-1 truncate">{pendingAttachment.name}</span>
-                        <button onClick={() => setPendingAttachment(null)} className="p-1 hover:bg-slate-700 rounded-full text-slate-500 transition-colors">
-                            <X size={14} />
-                        </button>
+            {/* Input area */}
+            <div className={`p-3 border-t relative bg-[#0f172a] ${isEmergency ? 'border-red-900/30' : 'border-slate-800'}`}>
+                {isSendingRestricted ? (
+                    <div className="flex flex-col items-center justify-center p-4 bg-red-950/20 border border-red-900/30 rounded-xl space-y-2">
+                        <ShieldAlert className="w-6 h-6 text-red-500" />
+                        <p className="text-xs text-red-400 font-bold uppercase tracking-tight text-center">
+                            Transmission Restricted<br />
+                            <span className="text-[10px] font-normal text-red-500/50">Only Commanders can broadcast alerts</span>
+                        </p>
                     </div>
-                )}
-
-                {mentionQuery !== null && filteredMentionUsers.length > 0 && (
-                    <div className="mb-2 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-2">
-                        {filteredMentionUsers.map((user, i) => (
-                            <div
-                                key={user.username}
-                                onClick={() => insertMention(user.username)}
-                                className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-2 transition-colors ${i === selectedMentionIdx ? 'bg-emerald-600/30 text-emerald-400' : 'hover:bg-slate-700 text-slate-300'}`}
-                            >
-                                <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-[10px]">
-                                    {user.username[0].toUpperCase()}
-                                </div>
-                                <span className="font-bold">{user.username}</span>
-                                {user.name && <span className="opacity-50">— {user.name}</span>}
+                ) : (
+                    <>
+                        {mentionQuery !== null && filteredMentionUsers.length > 0 && (
+                            <div className="absolute bottom-full left-3 mb-2 w-48 bg-[#1e293b] border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50">
+                                {filteredMentionUsers.map((user, idx) => (
+                                    <button
+                                        key={user.username}
+                                        onClick={() => insertMention(user.username)}
+                                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors
+                                            ${idx === selectedMentionIdx ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-300 hover:bg-slate-700/50'}`}
+                                    >
+                                        <div className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px]">
+                                            {user.username[0].toUpperCase()}
+                                        </div>
+                                        <span className="truncate">{user.name || user.username}</span>
+                                    </button>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
+                        )}
 
-                <div className="flex items-center gap-1 bg-[#1e293b] rounded-lg p-1.5 border border-slate-700 focus-within:border-emerald-800 transition-colors">
-                    {/* Timer Dropdown */}
-                    {isSelfDestructEnabled && (
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowTimerDropdown(!showTimerDropdown)}
-                                className={`p-1.5 rounded-md transition-colors ${timerSeconds > 0 ? 'text-amber-400 bg-amber-400/10' : 'text-slate-400 hover:text-white'}`}
-                                title={timerSeconds > 0 ? `Self-destruct: ${timerSeconds}s` : 'Global Policy'}
-                            >
-                                <Timer className="w-4 h-4" />
-                            </button>
-                            {showTimerDropdown && (
-                                <div className="absolute bottom-full left-0 mb-2 w-36 bg-[#0f172a] border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50">
-                                    <div className="text-[10px] font-bold tracking-widest text-slate-500 px-3 py-2 border-b border-slate-700/50 bg-slate-800/30">TIMER</div>
-                                    {[
-                                        { label: 'Global Policy', val: 0 },
-                                        { label: '10 Seconds', val: 10 },
-                                        { label: '1 Minute', val: 60 },
-                                        { label: '5 Minutes', val: 300 },
-                                        { label: '1 Hour', val: 3600 }
-                                    ].map(opt => (
-                                        <button
-                                            key={opt.val}
-                                            className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${timerSeconds === opt.val ? 'bg-emerald-600/20 text-emerald-400' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-                                            onClick={() => { setTimerSeconds(opt.val); setShowTimerDropdown(false); }}
-                                        >
-                                            {opt.label}
-                                            {timerSeconds === opt.val && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
-                                        </button>
-                                    ))}
+                        {pendingAttachment && (
+                            <div className="absolute bottom-full left-3 mb-2 p-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl flex items-center gap-2 group z-40">
+                                <div className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded">
+                                    {pendingAttachment.type?.startsWith('image/') ? <ImageIcon size={14} /> : <FileText size={14} />}
+                                </div>
+                                <span className="text-[10px] text-slate-300 max-w-[120px] truncate">{pendingAttachment.name}</span>
+                                <button onClick={() => setPendingAttachment(null)} className="p-1 hover:text-red-400 transition-colors">
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="flex items-end gap-2">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
+
+                            {!isEmergency && isSelfDestructEnabled && (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowTimerDropdown(!showTimerDropdown)}
+                                        className={`p-2 rounded-lg transition-all ${timerSeconds > 0 ? 'bg-amber-400/10 text-amber-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                        title="Timer"
+                                    >
+                                        <Timer size={18} />
+                                    </button>
+                                    {showTimerDropdown && (
+                                        <div className="absolute bottom-full left-0 mb-2 w-36 bg-[#0f172a] border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50">
+                                            {[
+                                                { label: 'Global Policy', val: 0 },
+                                                { label: '10 Seconds', val: 10 },
+                                                { label: '1 Minute', val: 60 },
+                                                { label: '5 Minutes', val: 300 },
+                                                { label: '1 Hour', val: 3600 }
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.val}
+                                                    className={`w-full text-left px-3 py-2 text-xs transition-colors ${timerSeconds === opt.val ? 'bg-emerald-600/20 text-emerald-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                                                    onClick={() => { setTimerSeconds(opt.val); setShowTimerDropdown(false); }}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
+
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading}
+                                className={`p-2 rounded-lg transition-all flex-shrink-0 ${isEmergency ? 'bg-red-900/20 text-red-400 hover:bg-red-900/40' : 'bg-slate-800 text-slate-400 hover:text-emerald-400 hover:bg-slate-700'}`}
+                                title="Attach File"
+                            >
+                                {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
+                            </button>
+
+                            <div className="flex-1 relative">
+                                <textarea
+                                    value={inputText}
+                                    onChange={handleInputChanges}
+                                    placeholder={isEmergency ? "BROADCAST EMERGENCY ALERT..." : "Message..."}
+                                    rows={1}
+                                    className={`w-full max-h-32 rounded-xl py-2.5 px-3 text-xs outline-none transition-all resize-none font-medium placeholder-slate-500 ${isEmergency ? 'bg-red-950/20 border border-red-900/40 focus:border-red-500 text-red-400' : 'bg-slate-900/50 border border-slate-800 focus:border-emerald-700/50 text-white'}`}
+                                    onKeyDown={(e) => {
+                                        if (mentionQuery !== null && filteredMentionUsers.length > 0) {
+                                            if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedMentionIdx((selectedMentionIdx + 1) % filteredMentionUsers.length); }
+                                            else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedMentionIdx((selectedMentionIdx - 1 + filteredMentionUsers.length) % filteredMentionUsers.length); }
+                                            else if (e.key === 'Enter') { e.preventDefault(); insertMention(filteredMentionUsers[selectedMentionIdx].username); }
+                                            else if (e.key === 'Escape') { setMentionQuery(null); }
+                                            return;
+                                        }
+
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSend();
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            <button
+                                onClick={isRecording ? stopRecording : startRecording}
+                                disabled={isUploading}
+                                className={`p-2 rounded-xl transition-all flex-shrink-0 flex items-center justify-center ${isRecording ? 'bg-red-500 text-white animate-pulse' : (isEmergency ? 'bg-red-900/20 text-red-400 hover:bg-red-900/40' : 'bg-slate-800 text-slate-400 hover:text-emerald-400 hover:bg-slate-700')}`}
+                                title={isRecording ? "Stop Recording" : "Voice Message"}
+                            >
+                                <Mic size={18} />
+                            </button>
+
+                            <button
+                                onClick={handleSend}
+                                disabled={(!inputText.trim() && !pendingAttachment) || isUploading}
+                                className={`p-2 rounded-xl transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${isEmergency ? 'bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-900/20' : 'bg-emerald-600 text-white hover:bg-emerald-500'}`}
+                            >
+                                <Send size={18} />
+                            </button>
                         </div>
-                    )}
-                    
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                        className={`p-1.5 rounded-md transition-colors ${isUploading ? 'text-slate-600' : 'text-slate-400 hover:text-white'}`}
-                    >
-                        {isUploading ? <div className="w-4 h-4 border-2 border-slate-600 border-t-emerald-400 rounded-full animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                    </button>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileSelect}
-                        className="hidden"
-                    />
-                    <input
-                        type="text"
-                        value={inputText}
-                        onChange={handleInputChanges}
-                        onKeyDown={(e) => {
-                            if (mentionQuery !== null && filteredMentionUsers.length > 0) {
-                                if (e.key === 'ArrowDown') {
-                                    e.preventDefault();
-                                    setSelectedMentionIdx((selectedMentionIdx + 1) % filteredMentionUsers.length);
-                                } else if (e.key === 'ArrowUp') {
-                                    e.preventDefault();
-                                    setSelectedMentionIdx((selectedMentionIdx - 1 + filteredMentionUsers.length) % filteredMentionUsers.length);
-                                } else if (e.key === 'Enter' || e.key === 'Tab') {
-                                    e.preventDefault();
-                                    insertMention(filteredMentionUsers[selectedMentionIdx].username);
-                                } else if (e.key === 'Escape') {
-                                    setMentionQuery(null);
-                                }
-                            } else if (e.key === 'Enter') {
-                                handleSend();
-                            }
-                        }}
-                        placeholder="Type message..."
-                        className="flex-1 bg-transparent border-none outline-none text-sm placeholder-slate-500 px-2 focus:ring-0"
-                        style={{ boxShadow: 'none' }}
-                    />
-                    {(!license?.modules || license.modules.includes('VOICE')) && (
-                        <button
-                            onMouseDown={startRecording}
-                            onMouseUp={stopRecording}
-                            onMouseLeave={stopRecording}
-                            onTouchStart={startRecording}
-                            onTouchEnd={stopRecording}
-                            className={`p-1.5 transition-colors rounded-md ${isRecording ? 'text-red-400 bg-red-400/10' : 'text-slate-400 hover:text-white'}`}
-                        >
-                            <Mic className={`w-4 h-4 ${isRecording ? 'animate-pulse' : ''}`} />
-                        </button>
-                    )}
-                    <button
-                        onClick={handleSend}
-                        className="p-1.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 rounded-md transition-colors"
-                    >
-                        <Send className="w-4 h-4" />
-                    </button>
-                </div>
+                    </>
+                )}
             </div>
 
             {showExport && (

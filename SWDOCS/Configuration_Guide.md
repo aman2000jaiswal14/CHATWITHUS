@@ -27,8 +27,12 @@ The system is configured to handle file uploads (attachments).
 # 50MB Upload Limits
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+
+# Global Message Expiration Policy (Module 1)
+# Default: 86400 seconds (24 hours)
+GLOBAL_MESSAGE_EXPIRATION_SECONDS = 86400
 ```
-- **Note**: If using Nginx as a reverse proxy, you must also update `client_max_body_size` in your Nginx config.
+- **Note**: This policy applies to all messages unless overridden by a per-message custom timer (licensed).
 
 ---
 

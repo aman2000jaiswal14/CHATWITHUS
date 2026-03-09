@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useChatStore } from '../../store/useChatStore';
 import { User, MessageCircle, Users, UserPlus, PlusCircle, BookmarkMinus, ShieldCheck, ShieldQuestion, ChevronDown, X, Bell, BellOff } from 'lucide-react';
 import { removeBookmark, verifyBookmark, setUserStatus, updateMuteSettings } from '../../services/api';
-import WebSocketClient from '../../services/WebSocketClient';
 
 const TABS = [
     { id: 'all', label: 'All' },
@@ -60,8 +59,6 @@ const Sidebar = ({ onSelectChat }) => {
     const handleStatusChange = async (status) => {
         try {
             await setUserStatus(status);
-            // The local store will be updated either by the API success or by the incoming WS broadcast.
-            // But we can update it immediately for better UX.
             useChatStore.getState().updatePresence(currentUser, { status, is_online: true });
         } catch (err) {
             console.error('Failed to set status:', err);
@@ -94,28 +91,24 @@ const Sidebar = ({ onSelectChat }) => {
         u.username.toLowerCase().includes(searchQuery.toLowerCase())
     ).sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0));
 
-    const groupUnread = filteredGroups.reduce((sum, g) => sum + (unreadCounts[String(g.id).toLowerCase()] || 0), 0);
-    const contactUnread = filteredBookmarks.reduce((sum, c) => sum + (unreadCounts[c.username.toLowerCase()] || 0), 0);
-
-    const showGroups = activeTab === 'all' || activeTab === 'groups';
-    const showContacts = activeTab === 'all' || activeTab === 'contacts';
-    const showUnverified = activeTab === 'all' || activeTab === 'unverified';
-
     const renderGroupItem = (group) => {
         const gid = String(group.id).toLowerCase();
+        const isEmergency = gid === 'emergency';
+        const unreadCount = unreadCounts[gid] || 0;
+
         return (
             <div key={group.id} onClick={() => onSelectChat(gid, true)}
-                className={`flex items-center gap-2.5 p-2.5 hover:bg-slate-800/80 rounded-xl cursor-pointer transition-all ${activeChatId === gid ? 'bg-slate-800 ring-1 ring-emerald-800' : ''}`}>
-                <div className="w-9 h-9 rounded-xl bg-emerald-900/40 border border-emerald-900 flex items-center justify-center flex-shrink-0">
-                    <Users className="w-4 h-4 text-emerald-500" />
+                className={`flex items-center gap-2.5 p-2.5 hover:bg-slate-800/80 rounded-xl cursor-pointer transition-all ${activeChatId === gid ? (isEmergency ? 'bg-red-950/30 ring-1 ring-red-500' : 'bg-slate-800 ring-1 ring-emerald-800') : ''} ${isEmergency ? 'border border-red-950/50 bg-red-950/10' : ''}`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isEmergency ? 'bg-red-500/20 border border-red-500/30' : 'bg-emerald-900/40 border border-emerald-900'}`}>
+                    <Users className={`w-4 h-4 ${isEmergency ? 'text-red-500' : 'text-emerald-500'}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{group.name}</p>
-                    <p className="text-[10px] text-slate-500">{group.member_count} members</p>
+                    <p className={`text-sm font-medium truncate ${isEmergency ? 'text-red-400 font-bold tracking-tight' : ''}`}>{group.name}</p>
+                    <p className="text-[10px] text-slate-500">{isEmergency ? 'System Broadcast' : `${group.member_count} members`}</p>
                 </div>
-                {unreadCounts[gid] > 0 && (
-                    <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] flex items-center justify-center animate-pulse">
-                        {unreadCounts[gid]}
+                {unreadCount > 0 && (
+                    <div className={`${isEmergency ? 'bg-red-600' : 'bg-red-500'} text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] flex items-center justify-center animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]`}>
+                        {unreadCount}
                     </div>
                 )}
             </div>
@@ -184,6 +177,72 @@ const Sidebar = ({ onSelectChat }) => {
             </button>
         </div>
     );
+
+    // Inject/Merge Emergency Broadcast group if licensed
+    const isEmergencyLicensed = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('EMERGENCY_BROADCAST');
+    const serverEmergencyGroup = groups.find(g => g.id === 'emergency');
+
+    const emergencyGroup = isEmergencyLicensed ? {
+        id: 'emergency',
+        name: 'EMERGENCY BROADCAST',
+        isGroup: true,
+        last_message_at: serverEmergencyGroup?.last_message_at || Infinity,
+        unread_count: serverEmergencyGroup?.unread_count || 0
+    } : null;
+
+    const allItems = [
+        ...(emergencyGroup ? [emergencyGroup] : []),
+        ...filteredGroups.filter(g => g.id !== 'emergency').map(g => ({ ...g, isGroup: true })),
+        ...filteredBookmarks.map(b => ({ ...b, isGroup: false })),
+        ...filteredUnverified.map(u => ({ ...u, isGroup: false, isUnverified: true }))
+    ].sort((a, b) => {
+        if (a.id === 'emergency') return -1;
+        if (b.id === 'emergency') return 1;
+        return (b.last_message_at || 0) - (a.last_message_at || 0);
+    });
+
+    const displayGroups = [
+        ...(emergencyGroup ? [emergencyGroup] : []),
+        ...filteredGroups
+    ];
+
+    const groupUnread = displayGroups.reduce((sum, g) => sum + (unreadCounts[String(g.id).toLowerCase()] || 0), 0);
+    const contactUnread = filteredBookmarks.reduce((sum, c) => sum + (unreadCounts[c.username.toLowerCase()] || 0), 0);
+
+    const showGroupsList = activeTab === 'all' || activeTab === 'groups';
+    const showContacts = activeTab === 'all' || activeTab === 'contacts';
+    const showUnverified = activeTab === 'all' || activeTab === 'unverified';
+
+    const renderItems = () => {
+        if (activeTab === 'all') {
+            return allItems.map(item => {
+                if (item.isGroup) return renderGroupItem(item);
+                if (item.isUnverified) return renderUnverifiedItem(item);
+                return renderContactItem(item);
+            });
+        }
+        return (
+            <>
+                {showGroupsList && displayGroups.length > 0 && (
+                    <div className="space-y-1">
+                        {displayGroups.map(renderGroupItem)}
+                    </div>
+                )}
+
+                {showContacts && filteredBookmarks.length > 0 && (
+                    <div className="space-y-1">
+                        {filteredBookmarks.map(renderContactItem)}
+                    </div>
+                )}
+
+                {showUnverified && filteredUnverified.length > 0 && (
+                    <div className="space-y-1">
+                        {filteredUnverified.map(renderUnverifiedItem)}
+                    </div>
+                )}
+            </>
+        );
+    };
 
     return (
         <div className="w-full bg-[#0f172a] flex flex-col h-full text-white">
@@ -316,43 +375,9 @@ const Sidebar = ({ onSelectChat }) => {
 
             {/* Content area */}
             <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
-                {activeTab === 'all' ? (
-                    <div className="space-y-1">
-                        {[
-                            ...filteredGroups.map(g => ({ ...g, isGroup: true })),
-                            ...filteredBookmarks.map(b => ({ ...b, isGroup: false })),
-                            ...filteredUnverified.map(u => ({ ...u, isGroup: false, isUnverified: true }))
-                        ].sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0))
-                            .map(item => {
-                                if (item.isGroup) return renderGroupItem(item);
-                                if (item.isUnverified) return renderUnverifiedItem(item);
-                                return renderContactItem(item);
-                            })
-                        }
-                    </div>
-                ) : (
-                    <>
-                        {showGroups && filteredGroups.length > 0 && (
-                            <div className="space-y-1">
-                                {filteredGroups.map(renderGroupItem)}
-                            </div>
-                        )}
+                {renderItems()}
 
-                        {showContacts && filteredBookmarks.length > 0 && (
-                            <div className="space-y-1">
-                                {filteredBookmarks.map(renderContactItem)}
-                            </div>
-                        )}
-
-                        {showUnverified && filteredUnverified.length > 0 && (
-                            <div className="space-y-1">
-                                {filteredUnverified.map(renderUnverifiedItem)}
-                            </div>
-                        )}
-                    </>
-                )}
-
-                {filteredBookmarks.length === 0 && filteredGroups.length === 0 && filteredUnverified.length === 0 && (
+                {allItems.length === 0 && (
                     <div className="py-20 text-center flex flex-col items-center justify-center opacity-50">
                         <MessageCircle className="w-8 h-8 text-slate-700 mb-2" />
                         <p className="text-xs text-slate-500 font-mono">No matches found</p>

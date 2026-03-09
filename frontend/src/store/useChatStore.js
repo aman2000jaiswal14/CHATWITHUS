@@ -16,10 +16,12 @@ export const useChatStore = create((set, get) => ({
     isRegistered: true,
     isMuted: true,
     isSelfDestructEnabled: false,
+    isEmergencyAlertActive: false,
 
     setIsRegistered: (val) => set({ isRegistered: val }),
     setIsMuted: (val) => set({ isMuted: val }),
     setIsSelfDestructEnabled: (val) => set({ isSelfDestructEnabled: val }),
+    setIsEmergencyAlertActive: (val) => set({ isEmergencyAlertActive: val }),
 
     setActiveChat: (chatId, isGroup) => set((state) => {
         const lowerId = String(chatId).toLowerCase();

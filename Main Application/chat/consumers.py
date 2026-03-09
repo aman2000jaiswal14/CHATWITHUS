@@ -32,6 +32,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
         self.joined_groups.add(self.personal_group)
 
+        # Join the global broadcast group for Emergency Alerts
+        await self.channel_layer.group_add(
+            'all_users',
+            self.channel_name
+        )
+        self.joined_groups.add('all_users')
+
         await self.accept()
         print(f"[WS CONNECTED] user={self.user_id}")
 
@@ -63,8 +70,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         print(f"[AUTH WARN] Enforcing sender_id to {self.user_id} (attempted {message.sender_id})")
                         message.sender_id = self.user_id
 
-                    # Prevent unauthorized group message injection IDOR
-                    if message.is_group_message:
+                    # Check if this is an emergency broadcast BEFORE group membership check
+                    is_emergency = message.target_id.upper() == "EMERGENCY"
+
+                    if is_emergency:
+                        # Validate Commander role for Broadcasts
+                        user_role = await self.get_user_role(self.user_id)
+                        if user_role != "Commander":
+                            print(f"[AUTH ERROR] User {self.user_id} attempted to broadcast without Commander role")
+                            return
+                        
+                        # Normalize target_id and force is_group_message for consistency
+                        message.target_id = "EMERGENCY"
+                        message.is_group_message = True
+                    elif message.is_group_message:
+                        # Prevent unauthorized group message injection IDOR
                         is_member = await self.is_user_in_group(self.user_id, message.target_id)
                         if not is_member:
                             print(f"[AUTH ERROR] User {self.user_id} attempted to message group {message.target_id} without membership")
@@ -87,7 +107,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     updated_bytes = wrapper.SerializeToString()
                     encoded = base64.b64encode(updated_bytes).decode('ascii')
 
-                    if message.is_group_message:
+                    if is_emergency:
+                        # Broadcast to all connected users
+                        await self.channel_layer.group_send(
+                            'all_users',
+                            {'type': 'chat.message', 'data': encoded}
+                        )
+                    elif message.is_group_message:
                         target_group = f'group_{message.target_id}'
                         await self.channel_layer.group_send(
                             target_group,
@@ -189,6 +215,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except UserStatus.DoesNotExist:
             return {'status': 0, 'is_online': False}
 
+    @database_sync_to_async
+    def get_user_role(self, username):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            return User.objects.get(username=username).role
+        except User.DoesNotExist:
+            return "User"
+
     async def broadcast_presence(self, is_connecting=True):
         """Broadcast user status to all contacts."""
         if not self.user_id:
@@ -259,7 +294,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
             else:
                 expires_at = timezone.now() + datetime.timedelta(seconds=settings.GLOBAL_MESSAGE_EXPIRATION_SECONDS)
 
-            if message.is_group_message:
+            if message.target_id == "EMERGENCY":
+                # Emergency broadcast — store without group or recipient
+                db_message, created = DBMessage.objects.get_or_create(
+                    message_id=message.message_id,
+                    defaults={
+                        'sender': sender,
+                        'content': content,
+                        'is_emergency_broadcast': True,
+                        'expires_at': expires_at,
+                    }
+                )
+                if message.HasField('attachment'):
+                    MessageAttachment.objects.get_or_create(
+                        message=db_message,
+                        defaults={
+                            'file_name': message.attachment.name,
+                            'file': message.attachment.url.replace('/media/', ''),
+                            'file_type': message.attachment.type,
+                            'file_size': message.attachment.size,
+                            'expires_at': expires_at,
+                        }
+                    )
+            elif message.is_group_message:
                 try:
                     group = ChatGroup.objects.get(id=int(message.target_id))
                     db_message, created = DBMessage.objects.get_or_create(

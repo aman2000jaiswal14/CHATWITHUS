@@ -76,6 +76,7 @@ class Message(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     is_expired = models.BooleanField(default=False)
+    is_emergency_broadcast = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['timestamp']

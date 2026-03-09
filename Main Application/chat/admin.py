@@ -26,8 +26,8 @@ class ChatGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('sender', 'recipient', 'group', 'message_type', 'content_preview', 'expires_at', 'is_expired', 'timestamp')
-    list_filter = ('timestamp', 'group', 'message_type', 'is_expired')
+    list_display = ('sender', 'recipient', 'group', 'message_type', 'is_emergency_broadcast', 'content_preview', 'expires_at', 'is_expired', 'timestamp')
+    list_filter = ('timestamp', 'group', 'message_type', 'is_emergency_broadcast', 'is_expired')
     search_fields = ('sender__username', 'recipient__username', 'content')
     readonly_fields = ('timestamp',)
 

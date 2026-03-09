@@ -16,6 +16,7 @@ import LicensingService from './services/LicensingService';
 function App() {
   const { messagesByChat, activeChatId, isGroupChat, currentView, lastOpenedUnread,
     isRegistered, setIsRegistered, isMuted, setIsMuted, isSelfDestructEnabled, setIsSelfDestructEnabled,
+    isEmergencyAlertActive, setIsEmergencyAlertActive,
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
@@ -54,6 +55,50 @@ function App() {
     }
   }, [wsUrl, currentUser, isRegistered, licenseState.valid]);
 
+  // 3. Emergency Audio Alert — 2-second one-shot siren
+  useEffect(() => {
+    let audioCtx = null;
+
+    if (isEmergencyAlertActive) {
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        osc.type = 'sawtooth';
+        // 2-second siren sweep
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(1600, now + 0.5);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 1.0);
+        osc.frequency.exponentialRampToValueAtTime(1600, now + 1.5);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 2.0);
+
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.25, now + 0.1);
+        gainNode.gain.setValueAtTime(0.25, now + 1.7);
+        gainNode.gain.linearRampToValueAtTime(0, now + 2.0);
+
+        osc.start(now);
+        osc.stop(now + 2.0);
+      } catch (err) {
+        console.error("Emergency audio failed:", err);
+      }
+    }
+
+    return () => {
+      if (audioCtx) {
+        audioCtx.close().catch(() => { });
+      }
+    };
+  }, [isEmergencyAlertActive]);
+
   const handleSelectChat = (chatId, isGroup) => {
     setActiveChat(chatId, isGroup);
     setCurrentView('chat');
@@ -68,7 +113,6 @@ function App() {
     if (!activeChatId) return;
     const wsClient = WebSocketClient.getInstance();
 
-    // Auto-detect PTT message type enum (1) if it's an audio recording
     let msgType = 0; // TEXT
     if (attachment && attachment.type && attachment.type.startsWith('audio/')) {
       msgType = 1; // PTT
@@ -120,6 +164,9 @@ function App() {
 
   return (
     <div className="flex flex-col h-full w-full bg-[#0a0f1c] font-sans antialiased text-slate-300 overflow-hidden">
+      {isEmergencyAlertActive && (
+        <div className="absolute top-0 left-0 w-full h-1 bg-red-600 z-[9999] animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.8)]" />
+      )}
       {currentView === 'contacts' && (
         <Sidebar onSelectChat={handleSelectChat} />
       )}
