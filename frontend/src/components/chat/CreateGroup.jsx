@@ -5,7 +5,7 @@ import { searchUsers, createGroup } from '../../services/api';
 import WebSocketClient from '../../services/WebSocketClient';
 
 const CreateGroup = ({ onBack }) => {
-    const { addGroup, setCurrentView } = useChatStore();
+    const { addGroup, setCurrentView, setActiveChat } = useChatStore();
     const [name, setName] = useState('');
     const [users, setUsers] = useState([]);
     const [search, setSearch] = useState('');
@@ -44,6 +44,34 @@ const CreateGroup = ({ onBack }) => {
         }, 300);
         return () => clearTimeout(timer);
     }, [search]);
+
+    const toggleUser = (username) => {
+        const next = new Set(selected);
+        if (next.has(username)) {
+            next.delete(username);
+        } else {
+            next.add(username);
+        }
+        setSelected(next);
+    };
+
+    const handleCreate = async () => {
+        if (!name.trim()) return;
+        setCreating(true);
+        try {
+            const res = await createGroup(name, Array.from(selected));
+            if (res.status === 'created') {
+                addGroup(res.group);
+                // Subscribe to the new group's WebSocket channel immediately
+                WebSocketClient.getInstance().subscribeGroup(String(res.group.id));
+                setActiveChat(String(res.group.id), true);
+                setCurrentView('chat');
+            }
+        } catch (err) {
+            console.error('Failed to create group:', err);
+        }
+        setCreating(false);
+    };
 
     return (
         <div className="w-full bg-[#0f172a] flex flex-col h-full text-white">

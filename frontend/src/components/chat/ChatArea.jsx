@@ -501,14 +501,14 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     // Consolidated effect for marking as read with debounce to prevent duplicate calls on load
     useEffect(() => {
         if (!activeChatId) return;
-        
+
         const timer = setTimeout(() => {
             markRead(activeChatId, isGroupChat).catch(console.error);
         }, 300);
-        
+
         const handleFocus = () => markRead(activeChatId, isGroupChat).catch(console.error);
         window.addEventListener('focus', handleFocus);
-        
+
         return () => {
             clearTimeout(timer);
             window.removeEventListener('focus', handleFocus);
@@ -773,8 +773,8 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     };
 
     const isEmergency = activeChatId === 'emergency';
-    const userRole = window.CHAT_CONFIG?.USER_ROLE || 'User';
-    const canSendToEmergency = userRole === 'Commander';
+    const userRole = (window.CHAT_CONFIG?.USER_ROLE || 'User').toLowerCase();
+    const canSendToEmergency = userRole === 'commander' || userRole === 'admin';
     const isSendingRestricted = isEmergency && !canSendToEmergency;
 
     let chatName = activeChatId || "SECURE CHANNEL";

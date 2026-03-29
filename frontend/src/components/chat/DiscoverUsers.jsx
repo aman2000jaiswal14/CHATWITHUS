@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, BookmarkPlus, BookmarkMinus, User as UserIcon } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
-import { searchUsers, addBookmark, removeBookmark } from '../../services/api';
+import { searchUsers, addBookmark, removeBookmark, fetchStatuses } from '../../services/api';
 
 const DiscoverUsers = ({ onBack }) => {
-    const { addBookmark: addToStore, removeBookmark: removeFromStore } = useChatStore();
+    const { addBookmark: addToStore, removeBookmark: removeFromStore, updatePresence } = useChatStore();
     const [search, setSearch] = useState('');
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -50,6 +50,13 @@ const DiscoverUsers = ({ onBack }) => {
             await addBookmark(user.username);
             addToStore({ username: user.username, name: user.name, role: user.role });
             setUsers(users.map(u => u.username === user.username ? { ...u, is_bookmarked: true } : u));
+            // Refresh statuses so the new contact shows correct online/offline state
+            try {
+                const statusData = await fetchStatuses();
+                Object.entries(statusData.statuses || {}).forEach(([uid, s]) => {
+                    updatePresence(uid, s);
+                });
+            } catch (e) { /* ignore */ }
         }
     };
 

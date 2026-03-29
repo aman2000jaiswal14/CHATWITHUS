@@ -113,6 +113,16 @@ export async function leaveGroup(groupId) {
     return res.json();
 }
 
+export async function renameGroup(groupId, name) {
+    const res = await fetch(getUrl(`/chat/api/groups/${groupId}/rename/`), {
+        method: 'POST', credentials: 'same-origin',
+        headers: getHeaders('POST'),
+        body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw res;
+    return res.json();
+}
+
 export async function makeGroupAdmin(groupId, username) {
     const res = await fetch(getUrl(`/chat/api/groups/${groupId}/make_admin/`), {
         method: 'POST', credentials: 'same-origin',

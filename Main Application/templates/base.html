@@ -55,8 +55,8 @@
         }
     </script>
     <script src="{% static 'js/init-chat.js' %}"></script>
-    <!-- Chat Widget Script -->
-    <script src="{% static 'chat/ChatWithUsWid.js' %}"></script>
+
+    <script type="module" src="{% static 'chat/ChatWithUsWid.js' %}?v={% now 'U' %}"></script>
     {% endif %}
 </body>
 

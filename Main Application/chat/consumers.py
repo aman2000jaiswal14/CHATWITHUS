@@ -76,8 +76,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     if is_emergency:
                         # Validate Commander role for Broadcasts
                         user_role = await self.get_user_role(self.user_id)
-                        if user_role != "Commander":
-                            print(f"[AUTH ERROR] User {self.user_id} attempted to broadcast without Commander role")
+                        if user_role.lower() not in ["commander", "admin"]:
+                            print(f"[AUTH ERROR] User {self.user_id} attempted to broadcast without Commander/Admin role (has {user_role})")
                             return
                         
                         # Normalize target_id and force is_group_message for consistency

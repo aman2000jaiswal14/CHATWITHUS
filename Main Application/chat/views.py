@@ -335,6 +335,9 @@ def api_group_create(request):
             pass
 
     create_system_message(group, f"Group '{name}' created by {user.username}")
+    
+    # Notify creator to refresh as well so their WS joins the new group channel
+    notify_user_refresh(user.username)
 
     return JsonResponse({
         'status': 'created',

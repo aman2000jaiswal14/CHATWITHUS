@@ -201,10 +201,7 @@ const Sidebar = ({ onSelectChat }) => {
         return (b.last_message_at || 0) - (a.last_message_at || 0);
     });
 
-    const displayGroups = [
-        ...(emergencyGroup ? [emergencyGroup] : []),
-        ...filteredGroups
-    ];
+    const displayGroups = filteredGroups.filter(g => g.id !== 'emergency');
 
     const groupUnread = displayGroups.reduce((sum, g) => sum + (unreadCounts[String(g.id).toLowerCase()] || 0), 0);
     const contactUnread = filteredBookmarks.reduce((sum, c) => sum + (unreadCounts[c.username.toLowerCase()] || 0), 0);

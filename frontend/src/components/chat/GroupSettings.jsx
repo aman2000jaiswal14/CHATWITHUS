@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, LogOut, Pencil, Check, X, Shield, Users, Calendar, Crown, Download } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
-import { leaveGroup } from '../../services/api';
+import { leaveGroup, renameGroup } from '../../services/api';
 import ExportModal from './ExportModal';
 
 const config = () => window.CHAT_CONFIG || {};
@@ -33,16 +33,15 @@ const GroupSettings = ({ onBack }) => {
             return;
         }
         setSaving(true);
-        const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': config().CSRF_TOKEN || '' };
-        const res = await fetch(`/chat/api/groups/${activeChatId}/rename/`, {
-            method: 'POST', credentials: 'same-origin', headers,
-            body: JSON.stringify({ name: newName.trim() }),
-        });
-        const data = await res.json();
-        if (data.status === 'renamed') {
-            setGroups(groups.map(g =>
-                String(g.id) === activeChatId ? { ...g, name: data.name } : g
-            ));
+        try {
+            const data = await renameGroup(activeChatId, newName.trim());
+            if (data.status === 'renamed') {
+                setGroups(groups.map(g =>
+                    String(g.id) === activeChatId ? { ...g, name: data.name } : g
+                ));
+            }
+        } catch (err) {
+            console.error('Rename failed:', err);
         }
         setSaving(false);
         setEditing(false);
