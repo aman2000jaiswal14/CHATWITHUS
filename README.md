@@ -32,6 +32,7 @@ We have prepared a full suite of **16 specialized documents** in the [SWDOCS/](.
 | **Operational** | [Deployment_Guide.md](./SWDOCS/Deployment_Guide.md) / [Detailed_Manual](./SWDOCS/Detailed_Deployment_Manual.md) | Step-by-step production setup (Nginx/Systemd). |
 | **Developer** | [API_Reference.md](./SWDOCS/API_Reference.md) / [Integration_Guide.md](./SWDOCS/Integration_Guide.md) | Extension and platform integration. |
 | **Support** | [Troubleshooting_FAQ.md](./SWDOCS/Troubleshooting_FAQ.md) | Common issues & resolution steps. |
+| **Audit** | [Security_Audit_2026.md](./SWDOCS/Security_Audit_2026.md) | Latest vulnerability report (March 2026). |
 | **Workflow** | [DevGuide.md](./SWDOCS/DevGuide.md) | Build commands & file distribution. |
 
 ---

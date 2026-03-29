@@ -53,3 +53,11 @@ Using binary Protobuf instead of JSON makes the data stream less "human-readable
 
 ## 5. Secure WebSockets
 - Connections are established over `wss://` (WebSocket Secure) in production to ensure transport-layer security (TLS).
+
+## 6. Known Gaps & Future Hardening
+As of March 2026, a formalized security audit identified several architectural gaps for future hardening:
+- **Identity Verification**: Transitioning from header-based `X-Chat-User` to signed JWTs.
+- **WebSocket Handshake**: Implementing tokens for WebSocket connection authorization.
+- **CSRF Enforcement**: Removal of `@csrf_exempt` across all non-GET API endpoints.
+
+Detailed records can be found in [Security_Audit_2026.md](./Security_Audit_2026.md).
