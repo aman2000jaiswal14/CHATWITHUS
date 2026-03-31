@@ -21,6 +21,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from django.contrib.staticfiles.storage import staticfiles_storage
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,4 +30,5 @@ urlpatterns = [
     path('chat/', include('chat.urls')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('favicon.ico'))),
     path('', RedirectView.as_view(pattern_name='login', permanent=False), name='home'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + staticfiles_urlpatterns()
+

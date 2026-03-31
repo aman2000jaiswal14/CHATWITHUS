@@ -16,14 +16,13 @@ import LicensingService from './services/LicensingService';
 function App() {
   const { messagesByChat, activeChatId, isGroupChat, currentView, lastOpenedUnread,
     isRegistered, setIsRegistered, isMuted, setIsMuted, isSelfDestructEnabled, setIsSelfDestructEnabled,
-    isEmergencyAlertActive, setIsEmergencyAlertActive,
+    isEmergencyAlertActive, setIsEmergencyAlertActive, currentUser,
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
 
   const config = window.CHAT_CONFIG || {};
-  const currentUser = config.USER_ID || 'anonymous';
-  const wsUrl = config.WS_URL || `ws://${window.location.host}/ws/chat/${currentUser}/`;
+  const wsUrl = config.WS_URL ? config.WS_URL.replace(/\/ws\/chat\/[^/]+\//, `/ws/chat/${currentUser}/`) : `ws://${window.location.host}/ws/chat/${currentUser}/`;
 
   // 1. Effect for License Verification
   useEffect(() => {

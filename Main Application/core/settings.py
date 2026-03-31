@@ -11,9 +11,13 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# HTTPS configuration flag (Switch to False for HTTP/WS)
+USE_HTTPS = True
 
 
 # Quick-start development settings - unsuitable for production
@@ -155,9 +159,13 @@ CORS_ALLOW_HEADERS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://127.0.0.1:5500",
-    "http://localhost:5500",
+# Allow explicit loopback and any local network IP addresses (10.x, 192.168.x, 172.x)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https?://127\.0\.0\.1(:\d+)?$",
+    r"^https?://localhost(:\d+)?$",
+    r"^https?://192\.168\.\d+\.\d+(:\d+)?$",
+    r"^https?://10\.\d+\.\d+\.\d+(:\d+)?$",
+    r"^https?://172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+(:\d+)?$",
 ]
 
 # 50MB Upload Limits

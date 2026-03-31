@@ -26,13 +26,12 @@ const Sidebar = ({ onSelectChat }) => {
 
     const config = window.CHAT_CONFIG || {};
     const currentUser = config.USER_ID || 'anonymous';
-    const myPresence = presence[currentUser.toLowerCase()] || { status: 0, is_online: true };
+    const myPresence = presence[currentUser] || { status: 0, is_online: true };
     const myStatus = typeof myPresence === 'object' ? myPresence.status : myPresence;
     const currentStatusObj = STATUS_OPTIONS.find(s => s.value === myStatus) || STATUS_OPTIONS[0];
 
     const getStatusColor = (username) => {
-        const lower = username.toLowerCase();
-        const p = presence[lower];
+        const p = presence[username];
         if (!p || !p.is_online) return 'bg-slate-500'; // Offline
         switch (p.status) {
             case 0: return 'bg-emerald-500';
@@ -44,8 +43,7 @@ const Sidebar = ({ onSelectChat }) => {
     };
 
     const getStatusLabel = (username) => {
-        const lower = username.toLowerCase();
-        const p = presence[lower];
+        const p = presence[username];
         if (!p || !p.is_online) return 'Offline';
         switch (p.status) {
             case 0: return 'Online';
@@ -92,8 +90,8 @@ const Sidebar = ({ onSelectChat }) => {
     ).sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0));
 
     const renderGroupItem = (group) => {
-        const gid = String(group.id).toLowerCase();
-        const isEmergency = gid === 'emergency';
+        const gid = String(group.id);
+        const isEmergency = gid.toLowerCase() === 'emergency';
         const unreadCount = unreadCounts[gid] || 0;
 
         return (
@@ -116,7 +114,7 @@ const Sidebar = ({ onSelectChat }) => {
     };
 
     const renderContactItem = (contact) => {
-        const cid = contact.username.toLowerCase();
+        const cid = contact.username;
         return (
             <div key={contact.username} onClick={() => onSelectChat(cid, false)}
                 className={`flex items-center gap-2.5 p-2.5 hover:bg-slate-800/80 rounded-xl cursor-pointer transition-all group ${activeChatId === cid ? 'bg-slate-800 ring-1 ring-emerald-800' : ''}`}>
@@ -151,7 +149,7 @@ const Sidebar = ({ onSelectChat }) => {
     };
 
     const renderUnverifiedItem = (contact) => (
-        <div key={contact.username} onClick={() => onSelectChat(contact.username.toLowerCase(), false)}
+        <div key={contact.username} onClick={() => onSelectChat(contact.username, false)}
             className="flex items-center gap-2.5 p-2.5 hover:bg-amber-900/20 rounded-xl cursor-pointer transition-all border border-amber-900/30 bg-amber-900/10">
             <div className="w-9 h-9 rounded-full bg-amber-900/30 flex items-center justify-center flex-shrink-0">
                 <ShieldQuestion className="w-4 h-4 text-amber-400" />
@@ -203,8 +201,8 @@ const Sidebar = ({ onSelectChat }) => {
 
     const displayGroups = filteredGroups.filter(g => g.id !== 'emergency');
 
-    const groupUnread = displayGroups.reduce((sum, g) => sum + (unreadCounts[String(g.id).toLowerCase()] || 0), 0);
-    const contactUnread = filteredBookmarks.reduce((sum, c) => sum + (unreadCounts[c.username.toLowerCase()] || 0), 0);
+    const groupUnread = displayGroups.reduce((sum, g) => sum + (unreadCounts[String(g.id)] || 0), 0);
+    const contactUnread = filteredBookmarks.reduce((sum, c) => sum + (unreadCounts[c.username] || 0), 0);
 
     const showGroupsList = activeTab === 'all' || activeTab === 'groups';
     const showContacts = activeTab === 'all' || activeTab === 'contacts';
@@ -247,7 +245,7 @@ const Sidebar = ({ onSelectChat }) => {
             <div className="p-3 border-b border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <MessageCircle className="text-emerald-400 w-5 h-5" />
-                    <h1 className="text-lg font-bold tracking-tight">CHAT WITH US</h1>
+                    <h1 className="text-lg font-bold tracking-tight">CHAT APP</h1>
                 </div>
                 <div className="flex gap-1">
                     <button

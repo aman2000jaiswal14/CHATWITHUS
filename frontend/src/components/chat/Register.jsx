@@ -11,7 +11,7 @@ const Register = () => {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const { setIsRegistered } = useChatStore();
+    const { setIsRegistered, setCurrentUser } = useChatStore();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -29,11 +29,10 @@ const Register = () => {
                 body: JSON.stringify(formData)
             });
 
-            const data = await res.json();
             if (res.ok) {
+                setCurrentUser(formData.username);
                 setIsRegistered(true);
-                // Trigger page refresh or re-fetch to start the app
-                window.location.reload();
+                // No more window.location.reload(); 
             } else {
                 setError(data.error || 'Registration failed');
             }

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "obfuscate": "javascript-obfuscator dist --output dist --compact true --control-flow-flattening true --dead-code-injection true --string-array true --self-defending true",
+    "secure-build": "npm run build && npm run obfuscate",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",

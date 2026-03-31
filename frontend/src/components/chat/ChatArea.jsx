@@ -292,7 +292,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
 
-    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat, isSelfDestructEnabled, isEmergencyAlertActive, setIsEmergencyAlertActive } = useChatStore();
+    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat, isSelfDestructEnabled, isEmergencyAlertActive, setIsEmergencyAlertActive, clearLastOpenedUnread } = useChatStore();
     const messages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
 
     const [timerSeconds, setTimerSeconds] = useState(0); // 0 = default global policy
@@ -533,6 +533,8 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         setInputText('');
         setPendingAttachment(null);
         setTimerSeconds(0); // Reset to global policy after each send
+        setUnreadStartIdx(null); // Clear "X New" banner on user interaction
+        clearLastOpenedUnread(); // Prevent useEffect from re-setting it
     };
 
     const handleFileSelect = async (e) => {
@@ -644,6 +646,10 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         }
 
         setInputText(val);
+        if (unreadStartIdx !== null) {
+            setUnreadStartIdx(null);
+            clearLastOpenedUnread();
+        }
 
         const lastAtCharIdx = val.lastIndexOf('@');
         if (lastAtCharIdx !== -1) {

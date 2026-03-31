@@ -17,71 +17,75 @@ export const useChatStore = create((set, get) => ({
     isMuted: true,
     isSelfDestructEnabled: false,
     isEmergencyAlertActive: false,
+    currentUser: (window.CHAT_CONFIG || {}).USER_ID || 'anonymous',
 
     setIsRegistered: (val) => set({ isRegistered: val }),
     setIsMuted: (val) => set({ isMuted: val }),
     setIsSelfDestructEnabled: (val) => set({ isSelfDestructEnabled: val }),
     setIsEmergencyAlertActive: (val) => set({ isEmergencyAlertActive: val }),
+    setCurrentUser: (val) => set({ currentUser: val }),
 
     setActiveChat: (chatId, isGroup) => set((state) => {
-        const lowerId = String(chatId).toLowerCase();
-        const snapshot = state.unreadCounts[lowerId] || 0;
+        const cid = String(chatId);
+        const snapshot = state.unreadCounts[cid] || 0;
         return {
-            activeChatId: lowerId,
+            activeChatId: cid,
             isGroupChat: isGroup,
-            unreadCounts: { ...state.unreadCounts, [lowerId]: 0 },
+            unreadCounts: { ...state.unreadCounts, [cid]: 0 },
             lastOpenedUnread: snapshot,
         };
     }),
     clearActiveChat: () => set({ activeChatId: null, isGroupChat: false, lastOpenedUnread: 0 }),
+    clearLastOpenedUnread: () => set({ lastOpenedUnread: 0 }),
     setCurrentView: (view) => set({ currentView: view }),
 
     setMessages: (chatId, newMessages) => set((state) => {
-        const lowerId = String(chatId).toLowerCase();
-        const existing = state.messagesByChat[lowerId] || [];
+        const cid = String(chatId);
+        const existing = state.messagesByChat[cid] || [];
         const combined = [...newMessages, ...existing];
         const unique = Array.from(new Map(combined.map(m => [m.messageId, m])).values())
             .sort((a, b) => (Number(a.sentAt) || 0) - (Number(b.sentAt) || 0));
 
         const newFetched = new Set(state.fetchedChats);
-        newFetched.add(lowerId);
+        newFetched.add(cid);
 
         return {
-            messagesByChat: { ...state.messagesByChat, [lowerId]: unique },
+            messagesByChat: { ...state.messagesByChat, [cid]: unique },
             fetchedChats: newFetched
         };
     }),
 
     addMessage: (chatId, message) => set((state) => {
-        const lowerId = String(chatId).toLowerCase();
-        const list = state.messagesByChat[lowerId] || [];
+        const cid = String(chatId);
+        const list = state.messagesByChat[cid] || [];
         // Deduplicate in addMessage too
         if (list.some(m => m.messageId === message.messageId)) return state;
 
         const newState = {
-            messagesByChat: { ...state.messagesByChat, [lowerId]: [...list, message] }
+            messagesByChat: { ...state.messagesByChat, [cid]: [...list, message] }
         };
 
-        // Update last_message_at for sorting
+        // Update last_message_at for sorting (case-insensitive match)
         const timestamp = Number(message.sentAt) || Date.now();
-        if (state.groups.some(g => String(g.id).toLowerCase() === lowerId)) {
+        const eq = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+        if (state.groups.some(g => eq(g.id, cid))) {
             newState.groups = state.groups.map(g =>
-                String(g.id).toLowerCase() === lowerId ? { ...g, last_message_at: timestamp } : g
+                eq(g.id, cid) ? { ...g, last_message_at: timestamp } : g
             );
-        } else if (state.bookmarks.some(b => b.username.toLowerCase() === lowerId)) {
+        } else if (state.bookmarks.some(b => eq(b.username, cid))) {
             newState.bookmarks = state.bookmarks.map(b =>
-                b.username.toLowerCase() === lowerId ? { ...b, last_message_at: timestamp } : b
+                eq(b.username, cid) ? { ...b, last_message_at: timestamp } : b
             );
-        } else if (state.unverified.some(u => u.username.toLowerCase() === lowerId)) {
+        } else if (state.unverified.some(u => eq(u.username, cid))) {
             newState.unverified = state.unverified.map(u =>
-                u.username.toLowerCase() === lowerId ? { ...u, last_message_at: timestamp } : u
+                eq(u.username, cid) ? { ...u, last_message_at: timestamp } : u
             );
         }
 
-        if (state.activeChatId !== lowerId) {
+        if (state.activeChatId !== cid) {
             newState.unreadCounts = {
                 ...state.unreadCounts,
-                [lowerId]: (state.unreadCounts[lowerId] || 0) + 1
+                [cid]: (state.unreadCounts[cid] || 0) + 1
             };
         }
 
@@ -89,19 +93,19 @@ export const useChatStore = create((set, get) => ({
     }),
 
     loadMoreMessages: (chatId, oldMessages) => set((state) => {
-        const lowerId = String(chatId).toLowerCase();
-        const existing = state.messagesByChat[lowerId] || [];
+        const cid = String(chatId);
+        const existing = state.messagesByChat[cid] || [];
         const combined = [...oldMessages, ...existing];
         const unique = Array.from(new Map(combined.map(m => [m.messageId, m])).values())
             .sort((a, b) => (Number(a.sentAt) || 0) - (Number(b.sentAt) || 0));
 
         return {
-            messagesByChat: { ...state.messagesByChat, [lowerId]: unique }
+            messagesByChat: { ...state.messagesByChat, [cid]: unique }
         };
     }),
 
     updatePresence: (userId, statusData) => set((state) => ({
-        presence: { ...state.presence, [String(userId).toLowerCase()]: statusData }
+        presence: { ...state.presence, [String(userId)]: statusData }
     })),
 
     setBookmarks: (bookmarks) => set({ bookmarks }),

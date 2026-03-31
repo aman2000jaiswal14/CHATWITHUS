@@ -18,7 +18,10 @@ class WebSocketClient {
     }
 
     static getInstance(url, userId) {
-        if (!WebSocketClient.instance) {
+        if (!WebSocketClient.instance || (userId && WebSocketClient.instance.userId !== userId)) {
+            if (WebSocketClient.instance) {
+                WebSocketClient.instance.disconnect();
+            }
             WebSocketClient.instance = new WebSocketClient(url, userId);
         }
         return WebSocketClient.instance;
@@ -112,10 +115,10 @@ class WebSocketClient {
                     } : null
                 };
 
-                const chatId = msg.isGroupMessage ? String(msg.targetId).toLowerCase() :
+                const chatId = msg.isGroupMessage ? String(msg.targetId) :
                     (String(msg.senderId).toLowerCase() === String(this.userId).toLowerCase()
-                        ? String(msg.targetId).toLowerCase()
-                        : String(msg.senderId).toLowerCase());
+                        ? String(msg.targetId)
+                        : String(msg.senderId));
 
                 useChatStore.getState().addMessage(chatId, msg);
 
@@ -274,7 +277,7 @@ class WebSocketClient {
                 // Calculate Unread Counts from fresh data
                 const newUnreads = { ...state.unreadCounts };
                 (bookmarksData.bookmarks || []).forEach(b => {
-                    const cid = b.username.toLowerCase();
+                    const cid = b.username;
                     if (cid !== state.activeChatId) {
                         newUnreads[cid] = b.unread_count || 0;
                     } else {
@@ -282,7 +285,7 @@ class WebSocketClient {
                     }
                 });
                 (bookmarksData.unverified || []).forEach(b => {
-                    const cid = b.username.toLowerCase();
+                    const cid = b.username;
                     if (cid !== state.activeChatId) {
                         newUnreads[cid] = b.unread_count || 0;
                     } else {
@@ -290,7 +293,7 @@ class WebSocketClient {
                     }
                 });
                 (groupsData || []).forEach(g => {
-                    const cid = String(g.id).toLowerCase();
+                    const cid = String(g.id);
                     if (cid !== state.activeChatId) {
                         newUnreads[cid] = g.unread_count || 0;
                     } else {
