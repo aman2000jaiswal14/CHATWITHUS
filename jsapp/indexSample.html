@@ -1,24 +1,66 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>Static Chat Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>External Chat Integration Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
-
 <body>
 
-    <h1>Static Chat Test</h1>
+    <div class="container">
+        <h1>External Application</h1>
+        <p>The ChatWithUs widget is integrated below using the <code>#chatroot</code> entry point.</p>
+        <p>Current User: <strong>testuser5</strong></p>
+    </div>
 
+    <!-- 1. The Mounting Point for the Chat Widget -->
+    <div id="chatroot"></div>
+
+    <!-- 2. Chat Configuration -->
     <script>
         window.CHAT_CONFIG = {
-            USER_ID: "testuser5",
-            CSRF_TOKEN: "",
-            WS_URL: "ws://localhost:8000/ws/chat/testuser5/"
+            "USER_ID": "testuser5",
+            "API_BASE_URL": "https://10.229.43.148",
+            "WS_URL": "wss://10.229.43.148/chat/ws/chat/testuser5/",
+            "LICENSE_INFO": {
+                "PRODUCT": "ChatWithUs",
+                "PROJECT": "CIDSS",
+                "VERSION": "1.0.0",
+                "DESCRIPTION": "Demo Purpose License",
+                "COMPANY": "Premium Tier Client",
+                "PROVIDED TO": "CRL-BEL",
+                "ISSUED": "2026-03-31",
+                "VALID UNTIL": "2026-04-30",
+                "LICENSE TYPE": "DEMO",
+                "MODULES": "VOICE,E2E,NOTIFICATIONS,LAZYLOADING",
+                "ALLOWED_CHARS": "^[a-zA-Z0-9\\s]+$",
+                "SIGNATURE": "lUIB2tpJ36MguPNthEhAcOYQRovP3QkqYMQ/YIJIvWUd4jiTOivLOssib00ax0IGhz1R43bilgYmbNxRnVTIJkXBbZT+hBNHwQcNnGVPYjcyDypWoOsnGujdENuwMFEdPoslhcxIY+hYBbxGEO0KTkZmVliwk6+ockuw3etlpyu5Cn5JfcBLtdyQdeQqmXgYVEHdkYm/Z3Ty82CcjpDWHoX8h3tNh4QgT0X8IVWHDgfl6ko3vNMd3VLeKwk5UeREuaPY/6Zv84+NluIUJdq/X1LiKJ37nbeA/L4CJgAL/IMewTfwWy7ucEsk56hkybgmcCyBFucdUrVjHdqyTP9fNg=="
+            }
         };
     </script>
 
-    <script src="../Main Application/static/chat/widget.js"></script>
+    <!-- 3. Load the Chat Widget securely from the Flask static directory -->
+    <!-- Note: Using ?v=random to bypass local browser cache during testing -->
+    <script type="module" src="../flasktest/static/chat/ChatWithUsWid.js?v=123"></script>
 
 </body>
-
 </html>

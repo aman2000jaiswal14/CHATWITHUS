@@ -8,8 +8,8 @@
 <script id="chat-config" type="application/json">
 {
     "USER_ID": {{ user.username | tojson }},
-    "API_BASE_URL": "https://10.229.40.38:8000",
-    "WS_URL": "wss://10.229.40.38:8000/ws/chat/{{ user.username | urlencode }}/",
+    "API_BASE_URL": "https://10.229.43.148",
+    "WS_URL": "wss://10.229.43.148/chat/ws/chat/{{ user.username | urlencode }}/",
     "LICENSE_INFO": {{ CWU_LICENSE_INFO | tojson }}
 }
 </script>

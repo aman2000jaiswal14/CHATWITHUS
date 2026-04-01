@@ -63,10 +63,10 @@ To integrate the WCA Secure Chat widget into any application (React, PHP, Python
 
 ```html
 <!-- The Anchor -->
-<div id="root"></div>
+<div id="chatroot"></div>
 
 <!-- The Widget -->
-<script type="module" src="http://your-server:8000/static/ChatWithUsWid.js"></script>
+<script type="module" src="https://your-server/chat/static/chat/ChatWithUsWid.js"></script>
 ```
 
 ---

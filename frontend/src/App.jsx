@@ -22,7 +22,7 @@ function App() {
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
 
   const config = window.CHAT_CONFIG || {};
-  const wsUrl = config.WS_URL ? config.WS_URL.replace(/\/ws\/chat\/[^/]+\//, `/ws/chat/${currentUser}/`) : `ws://${window.location.host}/ws/chat/${currentUser}/`;
+  const wsUrl = config.WS_URL ? config.WS_URL.replace(/\/chat\/ws\/chat\/[^/]+\//, `/chat/ws/chat/${currentUser}/`) : `ws://${window.location.host}/chat/ws/chat/${currentUser}/`;
 
   // 1. Effect for License Verification
   useEffect(() => {

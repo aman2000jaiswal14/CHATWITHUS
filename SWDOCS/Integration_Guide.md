@@ -18,10 +18,10 @@ The simplest way to integrate the chat is via a direct script tag.
     <div id="main-content">Your Application Content</div>
     
     <!-- Chat Widget Anchor -->
-    <div id="root"></div>
+    <div id="chatroot"></div>
 
     <!-- Load the Widget -->
-    <script type="module" src="http://chat-server:8000/static/ChatWithUsWid.js"></script>
+    <script type="module" src="https://your-server/chat/static/chat/ChatWithUsWid.js"></script>
 </body>
 ```
 
@@ -40,7 +40,7 @@ import React, { useEffect } from 'react';
 const ChatIntegration = () => {
     useEffect(() => {
         const script = document.createElement('script');
-        script.src = "http://chat-server:8000/static/ChatWithUsWid.js";
+        script.src = "https://your-server/chat/static/chat/ChatWithUsWid.js";
         script.type = "module";
         script.async = true;
         document.body.appendChild(script);
@@ -73,7 +73,7 @@ Spring Boot applications using Thymeleaf can integrate the chat by adding the sc
     <div th:replace="${content}"></div>
 
     <!-- Chat Anchor -->
-    <div id="root"></div>
+    <div id="chatroot"></div>
 
     <!-- Chat Script -->
     <script type="module" th:src="@{/js/ChatWithUsWid.js}"></script>
@@ -92,13 +92,13 @@ In Python web frameworks, you can inject the user's identity directly into the p
 <body>
     {% block content %}{% endblock %}
 
-    <div id="root"></div>
+    <div id="chatroot"></div>
 
     <script type="module">
         // Optional: Pass current user info to global scope if needed by widget
         window.CHAT_USER = "{{ request.user.username }}";
     </script>
-    <script type="module" src="{% static 'chat/ChatWithUsWid.js' %}"></script>
+    <script type="module" src="https://your-server/chat/static/chat/ChatWithUsWid.js"></script>
 </body>
 ```
 
@@ -108,7 +108,7 @@ In Python web frameworks, you can inject the user's identity directly into the p
 <body>
     {% block body %}{% endblock %}
 
-    <div id="root"></div>
+    <div id="chatroot"></div>
 
     <script type="module" src="{{ url_for('static', filename='js/ChatWithUsWid.js') }}"></script>
 </body>

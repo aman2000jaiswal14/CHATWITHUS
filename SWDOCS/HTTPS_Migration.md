@@ -92,10 +92,67 @@ The host application should explicitly hardcode the `API_BASE_URL` and `WS_URL` 
 <script id="chat-config" type="application/json">
 {
     "USER_ID": "user1",
-    "API_BASE_URL": "https://localhost:8000",
-    "WS_URL": "wss://localhost:8000/ws/chat/user1/",
+    "API_BASE_URL": "https://your-server",
+    "WS_URL": "wss://your-server/chat/ws/chat/user1/",
     "LICENSE_INFO": { /* License Object */ }
 }
 </script>
 ```
 To switch back to HTTP, simply change `https://` to `http://` and `wss://` to `ws://` in this configuration block.
+
+---
+
+## 🚀 Production Deployment with Nginx Proxy
+
+In a production environment, you should use Nginx to handle SSL termination and proxy traffic to Daphne.
+
+### Nginx Proxy Configuration
+Add these blocks to your Nginx `server` configuration. **Note the use of `^~`** to ensure these routes take priority over static file regex blocks.
+
+```nginx
+# 1. Chat Media (Unified Prefix)
+location ^~ /chatmedia/ {
+    proxy_pass https://127.0.0.1:8000; # Point to Daphne
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_ssl_verify off;
+
+    # 🔥 Bulletproof CORS (Dynamic Origin)
+    proxy_hide_header 'Access-Control-Allow-Origin';
+    add_header 'Access-Control-Allow-Origin' "$http_origin" always;
+    add_header 'Access-Control-Allow-Methods' 'GET, OPTIONS' always;
+    add_header 'Access-Control-Allow-Headers' 'Origin, X-Requested-With, Content-Type, Accept' always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+}
+
+# 2. Chat API & WebSockets
+location ^~ /chat/ {
+    proxy_pass https://127.0.0.1:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_ssl_verify off;
+
+    # 🔥 Bulletproof CORS (Dynamic Origin)
+    if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' "$http_origin" always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, PUT, DELETE' always;
+        add_header 'Access-Control-Allow-Headers' 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRFToken, X-Chat-User' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Content-Length' 0;
+        add_header 'Content-Type' 'text/plain; charset=utf-8';
+        return 204;
+    }
+    proxy_hide_header 'Access-Control-Allow-Origin';
+    add_header 'Access-Control-Allow-Origin' "$http_origin" always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, PUT, DELETE' always;
+    add_header 'Access-Control-Allow-Headers' 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRFToken, X-Chat-User' always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+}
+```
+
+### Important Settings
+1. **`MEDIA_URL`**: Must be set to `'/chatmedia/'` in `settings.py`.
+2. **`USE_HTTPS`**: Must be set to `True` in `settings.py`.
+3. **`API_BASE_URL`**: Should point to your host root (e.g., `https://your-server.com`) without a trailing slash.

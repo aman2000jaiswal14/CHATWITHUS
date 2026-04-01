@@ -310,7 +310,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         message=db_message,
                         defaults={
                             'file_name': message.attachment.name,
-                            'file': message.attachment.url.replace('/media/', ''),
+                            'file': message.attachment.url.replace(settings.MEDIA_URL, ''),
                             'file_type': message.attachment.type,
                             'file_size': message.attachment.size,
                             'expires_at': expires_at,
@@ -334,7 +334,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             message=db_message,
                             defaults={
                                 'file_name': message.attachment.name,
-                                'file': message.attachment.url.replace('/media/', ''),
+                                'file': message.attachment.url.replace(settings.MEDIA_URL, ''),
                                 'file_type': message.attachment.type,
                                 'file_size': message.attachment.size,
                                 'expires_at': expires_at,
@@ -360,7 +360,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             message=db_message,
                             defaults={
                                 'file_name': message.attachment.name,
-                                'file': message.attachment.url.replace('/media/', ''),
+                                'file': message.attachment.url.replace(settings.MEDIA_URL, ''),
                                 'file_type': message.attachment.type,
                                 'file_size': message.attachment.size,
                                 'expires_at': expires_at,

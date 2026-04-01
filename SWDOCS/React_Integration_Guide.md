@@ -142,7 +142,7 @@ export const SecureChatWidget: React.FC<SecureChatProps> = ({
   // 5. Render the Anchor Div
   // The widget script will look for <div id="root"> or create it automatically.
   // We provide a dedicated anchor block here for clarity.
-  return <div id="root" className="wca-chat-anchor"></div>;
+  return <div id="chatroot" className="wca-chat-anchor"></div>;
 };
 
 export default SecureChatWidget;
@@ -166,8 +166,8 @@ const App = () => {
       */}
       <SecureChatWidget 
         userId="user1"
-        apiBaseUrl="https://localhost:8000"
-        wsUrl="wss://localhost:8000/ws/chat/user1/"
+        apiBaseUrl="https://your-server"
+        wsUrl="https://your-server/chat/ws/chat/user1/"
         licensePath="/CWULicense.txt"
         widgetScriptPath="/ChatWithUsWid.js"
       />

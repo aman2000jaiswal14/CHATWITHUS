@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+(function() {
     const configElement = document.getElementById('chat-config');
     if (configElement) {
         try {
@@ -7,4 +7,4 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Failed to parse chat config:', e);
         }
     }
-});
+})();

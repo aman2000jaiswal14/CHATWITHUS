@@ -4,10 +4,10 @@ import ShadowWrapper from './ShadowWrapper.jsx'
 
 // Auto-mount: Find the #root div or create one
 function mount() {
-  let rootEl = document.getElementById('root');
+  let rootEl = document.getElementById('chatroot');
   if (!rootEl) {
     rootEl = document.createElement('div');
-    rootEl.id = 'root';
+    rootEl.id = 'chatroot';
     document.body.appendChild(rootEl);
   }
 

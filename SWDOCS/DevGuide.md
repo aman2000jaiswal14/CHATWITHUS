@@ -85,14 +85,14 @@ Ensure your host template (`flasktest/templates/dashboard.html` or similar) is l
 <script>
 window.CHAT_CONFIG = {
     USER_ID: "{{ user.username }}", // The unique ID of the current user
-    API_BASE_URL: "http://localhost:8000", // Backend API URL
-    WS_URL: "ws://localhost:8000/ws/chat/{{ user.username }}/", // WebSocket URL
+    API_BASE_URL: "https://your-server", // Backend API URL (Nginx Root)
+    WS_URL: "wss://your-server/chat/ws/chat/{{ user.username }}/", // WebSocket URL
     LICENSE_INFO: {{ CWU_LICENSE_INFO | tojson }}, // The signed license object
 };
 </script>
 
 <!-- 2. The Anchor Div -->
-<div id="root"></div>
+<div id="chatroot"></div>
 
 <!-- 3. Load the Widget Script -->
 <script type="module" src="{{ url_for('static', filename='ChatWithUsWid.js') }}"></script>
