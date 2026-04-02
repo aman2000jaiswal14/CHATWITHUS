@@ -715,7 +715,14 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const formatTimeShort = (timestamp) => {
         if (!timestamp) return '';
         const date = new Date(Number(timestamp));
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const now = new Date();
+        const isToday = date.toDateString() === now.toDateString();
+        
+        if (isToday) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+            return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
     };
 
     const renderFormattedContent = (content) => {
