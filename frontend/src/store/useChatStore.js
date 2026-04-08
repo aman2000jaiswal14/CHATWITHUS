@@ -142,4 +142,21 @@ export const useChatStore = create((set, get) => ({
         groups: [...state.groups, group]
     })),
     setUnreadCounts: (counts) => set({ unreadCounts: counts }),
+
+    updateMessageStatus: (chatId, messageId, status) => set((state) => {
+        const cid = String(chatId);
+        const list = state.messagesByChat[cid] || [];
+        const index = list.findIndex(m => m.messageId === messageId);
+        if (index === -1) return state;
+
+        // Only upgrade status, don't downgrade
+        if ((list[index].readReceipt || 0) >= status) return state;
+
+        const newList = [...list];
+        newList[index] = { ...newList[index], readReceipt: status };
+
+        return {
+            messagesByChat: { ...state.messagesByChat, [cid]: newList }
+        };
+    }),
 }));

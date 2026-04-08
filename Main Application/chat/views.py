@@ -512,91 +512,98 @@ def api_chat_history(request, chat_id):
     from .models import Message
     from django.db.models import Q
     
-    if is_group:
-        if chat_id == 'emergency':
-            # Emergency broadcast is a virtual group — query by flag
-            messages = Message.objects.filter(is_emergency_broadcast=True)
+    try:
+        if is_group:
+            if chat_id == 'emergency':
+                # Emergency broadcast is a virtual group — query by flag
+                messages = Message.objects.filter(is_emergency_broadcast=True)
+            else:
+                try:
+                    group = ChatGroup.objects.get(id=chat_id)
+                    if not group.members.filter(id=user.id).exists():
+                        return JsonResponse({'error': 'not a member'}, status=403)
+                    messages = Message.objects.filter(group=group)
+                except ChatGroup.DoesNotExist:
+                    return JsonResponse({'error': 'group not found'}, status=404)
+                except Exception as e:
+                    return JsonResponse({'error': f"Group Query Error: {str(e)}"}, status=500)
         else:
-            try:
-                group = ChatGroup.objects.get(id=chat_id)
-                if not group.members.filter(id=user.id).exists():
-                    return JsonResponse({'error': 'not a member'}, status=403)
-                messages = Message.objects.filter(group=group)
-            except ChatGroup.DoesNotExist:
-                return JsonResponse({'error': 'group not found'}, status=404)
-    else:
-        messages = Message.objects.filter(
-            (Q(sender=user) & Q(recipient__username=chat_id)) |
-            (Q(sender__username=chat_id) & Q(recipient=user))
-        )
+            messages = Message.objects.filter(
+                (Q(sender=user) & Q(recipient__username=chat_id)) |
+                (Q(sender__username=chat_id) & Q(recipient=user))
+            )
 
-    # Check license for LAZYLOADING module
-    from chat.services.licensing import LicensingService
-    license_info = LicensingService.get_license_info()
-    has_lazyloading = False
-    if license_info and "error" not in license_info and "MODULES" in license_info:
-        modules = license_info.get("MODULES", "")
-        if "LAZYLOADING" in modules:
-            has_lazyloading = True
+        # Check license for LAZYLOADING module
+        from chat.services.licensing import LicensingService
+        license_info = LicensingService.get_license_info()
+        has_lazyloading = False
+        if license_info and "error" not in license_info and "MODULES" in license_info:
+            modules = license_info.get("MODULES", "")
+            if "LAZYLOADING" in modules:
+                has_lazyloading = True
 
-    # Enforce limit if not licensed
-    limit = 12
-    if not has_lazyloading:
-        offset = 0
-        limit = 50
+        # Enforce limit if not licensed
+        limit = 12
+        if not has_lazyloading:
+            offset = 0
+            limit = 50
 
-    history = messages.order_by('-timestamp').prefetch_related('attachments')[offset:offset+limit]
-    data = []
-    for msg in reversed(history):
-        # Compute is_expired dynamically
-        from django.utils import timezone
-        now = timezone.now()
-        expired = msg.is_expired or (msg.expires_at is not None and now >= msg.expires_at)
-        
-        # Auto-scrub expired messages on access (lazy cleanup)
-        if expired and not msg.is_expired:
-            msg.content = "Msg time expires"
-            msg.is_expired = True
-            msg.save(update_fields=['content', 'is_expired'])
-            # Delete attachment files from disk
-            for att in msg.attachments.all():
-                if not att.is_expired:
-                    if att.file:
-                        try:
-                            att.file.delete(save=False)
-                        except Exception:
-                            pass
-                    att.file_name = "Msg time expires"
-                    att.file_type = "expired"
-                    att.is_expired = True
-                    att.save()
-        
-        msg_dict = {
-            'messageId': msg.message_id,
-            'senderId': msg.sender.username,
-            'targetId': chat_id,
-            'isGroupMessage': is_group,
-            'type': msg.message_type,
-            'payload': msg.decrypted_content.encode('utf-8').hex() if not expired else '',
-            'sentAt': int(msg.timestamp.timestamp() * 1000),
-            'expires_at': int(msg.expires_at.timestamp() * 1000) if msg.expires_at else None,
-            'is_expired': expired,
-        }
-        
-        # Only attach attachment data if message is NOT expired
-        if not expired:
-            att = msg.attachments.first()
-            if att:
-                msg_dict['attachment'] = {
-                    'id': str(att.id),
-                    'name': att.decrypted_file_name,
-                    'type': att.decrypted_file_type,
-                    'url': att.file.url if att.file else '',
-                    'size': att.file_size,
-                }
-        data.append(msg_dict)
-        
-    return JsonResponse({'messages': data})
+        history = messages.order_by('-timestamp').prefetch_related('attachments')[offset:offset+limit]
+        data = []
+        for msg in reversed(history):
+            # Compute is_expired dynamically
+            from django.utils import timezone
+            now = timezone.now()
+            expired = msg.is_expired or (msg.expires_at is not None and now >= msg.expires_at)
+            
+            # Auto-scrub expired messages on access (lazy cleanup)
+            if expired and not msg.is_expired:
+                msg.content = "Msg time expires"
+                msg.is_expired = True
+                msg.save(update_fields=['content', 'is_expired'])
+                # Delete attachment files from disk
+                for att in msg.attachments.all():
+                    if not att.is_expired:
+                        if att.file:
+                            try:
+                                att.file.delete(save=False)
+                            except Exception:
+                                pass
+                        att.file_name = "Msg time expires"
+                        att.file_type = "expired"
+                        att.is_expired = True
+                        att.save()
+            
+            msg_dict = {
+                'messageId': msg.message_id,
+                'senderId': msg.sender.username,
+                'targetId': chat_id,
+                'isGroupMessage': is_group,
+                'type': msg.message_type,
+                'payload': msg.decrypted_content.encode('utf-8').hex() if not expired else '', # decryption_service.decrypt_payload returns str
+                'sentAt': int(msg.timestamp.timestamp() * 1000),
+                'expires_at': int(msg.expires_at.timestamp() * 1000) if msg.expires_at else None,
+                'is_expired': expired,
+                'readReceipt': msg.read_receipt,
+            }
+            
+            # Only attach attachment data if message is NOT expired
+            if not expired:
+                att = msg.attachments.first()
+                if att:
+                    msg_dict['attachment'] = {
+                        'id': str(att.id),
+                        'name': att.decrypted_file_name,
+                        'type': att.decrypted_file_type,
+                        'url': att.file.url if att.file else '',
+                        'size': att.file_size,
+                    }
+            data.append(msg_dict)
+            
+        return JsonResponse({'messages': data})
+    except Exception as e:
+        import traceback
+        return JsonResponse({'error': str(e), 'traceback': traceback.format_exc()}, status=500)
 
 
 
@@ -862,9 +869,125 @@ def api_mark_read(request):
         is_group=is_group
     )
     if not created:
-        cursor.save() # Triggers auto_now update
-        
+        cursor.save()
+
+    # Bulk update messages
+    from .models import Message, ChatGroup
+    
+    # Check license for Read Receipt feature
+    from .services.licensing import LicensingService
+    license_info = LicensingService.get_license_info()
+    modules = license_info.get('MODULES', '') if license_info else ''
+    
+    if 'READ_RECEIPT' in modules:
+        if is_group:
+            try:
+                group = ChatGroup.objects.get(id=chat_id)
+                # Find messages in this group that I didn't send
+                unread_msgs = Message.objects.filter(group=group).exclude(sender=user)
+                
+                for msg in unread_msgs:
+                    group_receipts = dict(msg.group_receipts) if msg.group_receipts else {}
+                    if group_receipts.get(user.username, 0) < 2:
+                        group_receipts[user.username] = 2
+                        msg.group_receipts = group_receipts
+                        msg.save(update_fields=['group_receipts'])
+                        
+                        # Re-aggregate
+                        members_without_sender = msg.group.members.exclude(id=msg.sender.id)
+                        member_count = members_without_sender.count()
+                        
+                        if member_count > 0:
+                            min_status = 2
+                            members_with_receipts = 0
+                            
+                            for m in members_without_sender:
+                                ms = group_receipts.get(m.username, 0)
+                                if ms < min_status:
+                                    min_status = ms
+                                if ms > 0:
+                                    members_with_receipts += 1
+                                    
+                            if members_with_receipts < member_count:
+                                min_status = 0
+                                
+                            if min_status > msg.read_receipt:
+                                msg.read_receipt = min_status
+                                msg.save(update_fields=['read_receipt'])
+                                
+                                # Note: we skip broadcasting here as api_mark_read is just a REST sync.
+                                # Real-time ticks are typically triggered by WebSocket receipts.
+            except (ChatGroup.DoesNotExist, ValueError):
+                pass
+        else:
+            Message.objects.filter(sender__username=chat_id, recipient=user, read_receipt__lt=2).update(read_receipt=2)
+
     return JsonResponse({'status': 'ok'})
+
+
+@csrf_exempt
+@require_POST
+def api_track_receipt(request):
+    """Track the read receipt for a specific message by ID."""
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'unauthorized'}, status=401)
+    
+    try:
+        data = json.loads(request.body)
+        message_id = data.get('message_id')
+        receipt_status = data.get('status') # 1: Delivered, 2: Read
+        
+        if not message_id or receipt_status is None:
+            return JsonResponse({'error': 'message_id and status required'}, status=400)
+            
+        # Check license for Read Receipt feature
+        from .services.licensing import LicensingService
+        license_info = LicensingService.get_license_info()
+        modules = license_info.get('MODULES', '') if license_info else ''
+        if 'READ_RECEIPT' not in modules:
+            return JsonResponse({'status': 'ok', 'receipt_status': 0})
+
+        from .models import Message, ChatGroup
+        msg = Message.objects.filter(message_id=message_id).first()
+        if not msg:
+            return JsonResponse({'error': 'message not found'}, status=404)
+            
+        if msg.group:
+            group_receipts = dict(msg.group_receipts) if msg.group_receipts else {}
+            if group_receipts.get(user.username, 0) < int(receipt_status):
+                group_receipts[user.username] = int(receipt_status)
+                msg.group_receipts = group_receipts
+                msg.save(update_fields=['group_receipts'])
+                
+                members_without_sender = msg.group.members.exclude(id=msg.sender.id)
+                member_count = members_without_sender.count()
+                
+                if member_count > 0:
+                    min_status = 2
+                    members_with_receipts = 0
+                    
+                    for m in members_without_sender:
+                        ms = group_receipts.get(m.username, 0)
+                        if ms < min_status:
+                            min_status = ms
+                        if ms > 0:
+                            members_with_receipts += 1
+                            
+                    if members_with_receipts < member_count:
+                        min_status = 0
+                        
+                    if min_status > msg.read_receipt:
+                        msg.read_receipt = min_status
+                        msg.save(update_fields=['read_receipt'])
+        else:
+            if msg.read_receipt < int(receipt_status):
+                msg.read_receipt = int(receipt_status)
+                msg.save(update_fields=['read_receipt'])
+            
+        return JsonResponse({'status': 'ok', 'receipt_status': msg.read_receipt})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @csrf_exempt

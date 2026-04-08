@@ -122,6 +122,19 @@ class WebSocketClient {
 
                 useChatStore.getState().addMessage(chatId, msg);
 
+                // Auto-send DELIVERED receipt for messages from others
+                if (String(msg.senderId).toLowerCase() !== String(this.userId).toLowerCase()) {
+                    const isLicensed = (window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT');
+                    if (isLicensed) {
+                        this.sendMessageReceipt(
+                            msg.messageId,
+                            msg.isGroupMessage ? msg.targetId : msg.senderId,
+                            msg.isGroupMessage,
+                            0 // DELIVERED
+                        );
+                    }
+                }
+
                 const isMine = String(msg.senderId).toLowerCase() === String(this.userId).toLowerCase();
 
                 // Check for Emergency Broadcast
@@ -130,7 +143,8 @@ class WebSocketClient {
                 }
 
                 const isMuted = useChatStore.getState().isMuted;
-                if (!isMine && !isMuted) {
+                const hasNotifications = (window.CWU_VERIFIED_MODULES || []).includes('NOTIFICATIONS');
+                if (!isMine && !isMuted && hasNotifications) {
                     this.playNotificationSound();
                 }
 
@@ -143,9 +157,39 @@ class WebSocketClient {
                     status: presence.status,
                     is_online: presence.isOnline
                 });
+            } else if (wrapper.content === 'receipt') {
+                const receipt = wrapper.receipt;
+                // ReceiptType: DELIVERED=0, READ=1
+                // We use 1 for Delivered, 2 for Read in our UI store to match backend model
+                const status = receipt.type === 0 ? 1 : 2;
+                
+                // For DMs, the store key is the other user (readerId). For groups, it's the groupId (chatId).
+                const targetChatId = receipt.isGroup ? receipt.chatId : receipt.readerId;
+                useChatStore.getState().updateMessageStatus(targetChatId, receipt.messageId, status);
             }
         } catch (err) {
             console.error('[WS] Failed to decode message', err);
+        }
+    }
+
+    async sendMessageReceipt(messageId, chatId, isGroup, type) {
+        if (!(window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT')) return;
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+
+        try {
+            const receipt = wca_chat.Receipt.create({
+                messageId: messageId,
+                chatId: String(chatId),
+                readerId: this.userId,
+                type: type, // 0: DELIVERED, 1: READ
+                isGroup: isGroup
+            });
+            const wrapper = wca_chat.ProtocolWrapper.create({
+                receipt: receipt
+            });
+            this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+        } catch (err) {
+            console.error('[WS] Failed to send receipt:', err);
         }
     }
 

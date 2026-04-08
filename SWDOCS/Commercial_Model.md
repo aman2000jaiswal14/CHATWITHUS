@@ -37,6 +37,7 @@ You provide a **Pre-configured, Hardened Server** with WCA Secure Chat pre-insta
 2.  **Shadow DOM Isolation**: "Plug-and-play" UI without CSS/JS conflicts.
 3.  **RSA-PSS Offline Licensing**: Supports Air-Gapped environments without "home pinging".
 4.  **AES-256-GCM E2EE**: Native, military-grade client-side encryption.
+5.  **Aggregated Read Receipts**: Secure status tracking that prevents individual privacy leakage in groups.
 
 ---
 

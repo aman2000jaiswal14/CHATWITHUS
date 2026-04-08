@@ -45,6 +45,18 @@ message Presence {
     Status status = 2;
 }
 
+message Receipt {
+    enum ReceiptType {
+        DELIVERED = 0;
+        READ = 1;
+    }
+    string message_id = 1;
+    string chat_id = 2; // sender of the message being acknowledged
+    string reader_id = 3; // user who read/received the message
+    ReceiptType type = 4;
+    bool is_group = 5;
+}
+
 message Command {
     enum CommandType {
         SUBSCRIBE_GROUP = 0;
@@ -59,5 +71,6 @@ message ProtocolWrapper {
         ChatMessage chat_message = 1;
         Presence presence = 2;
         Command command = 3;
+        Receipt receipt = 4;
     }
 }

@@ -1116,6 +1116,335 @@ export const wca_chat = $root.wca_chat = (() => {
         return Presence;
     })();
 
+    wca_chat.Receipt = (function() {
+
+        /**
+         * Properties of a Receipt.
+         * @memberof wca_chat
+         * @interface IReceipt
+         * @property {string|null} [messageId] Receipt messageId
+         * @property {string|null} [chatId] Receipt chatId
+         * @property {string|null} [readerId] Receipt readerId
+         * @property {wca_chat.Receipt.ReceiptType|null} [type] Receipt type
+         * @property {boolean|null} [isGroup] Receipt isGroup
+         */
+
+        /**
+         * Constructs a new Receipt.
+         * @memberof wca_chat
+         * @classdesc Represents a Receipt.
+         * @implements IReceipt
+         * @constructor
+         * @param {wca_chat.IReceipt=} [properties] Properties to set
+         */
+        function Receipt(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * Receipt messageId.
+         * @member {string} messageId
+         * @memberof wca_chat.Receipt
+         * @instance
+         */
+        Receipt.prototype.messageId = "";
+
+        /**
+         * Receipt chatId.
+         * @member {string} chatId
+         * @memberof wca_chat.Receipt
+         * @instance
+         */
+        Receipt.prototype.chatId = "";
+
+        /**
+         * Receipt readerId.
+         * @member {string} readerId
+         * @memberof wca_chat.Receipt
+         * @instance
+         */
+        Receipt.prototype.readerId = "";
+
+        /**
+         * Receipt type.
+         * @member {wca_chat.Receipt.ReceiptType} type
+         * @memberof wca_chat.Receipt
+         * @instance
+         */
+        Receipt.prototype.type = 0;
+
+        /**
+         * Receipt isGroup.
+         * @member {boolean} isGroup
+         * @memberof wca_chat.Receipt
+         * @instance
+         */
+        Receipt.prototype.isGroup = false;
+
+        /**
+         * Creates a new Receipt instance using the specified properties.
+         * @function create
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {wca_chat.IReceipt=} [properties] Properties to set
+         * @returns {wca_chat.Receipt} Receipt instance
+         */
+        Receipt.create = function create(properties) {
+            return new Receipt(properties);
+        };
+
+        /**
+         * Encodes the specified Receipt message. Does not implicitly {@link wca_chat.Receipt.verify|verify} messages.
+         * @function encode
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {wca_chat.IReceipt} message Receipt message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Receipt.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.messageId != null && Object.hasOwnProperty.call(message, "messageId"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.messageId);
+            if (message.chatId != null && Object.hasOwnProperty.call(message, "chatId"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.chatId);
+            if (message.readerId != null && Object.hasOwnProperty.call(message, "readerId"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.readerId);
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                writer.uint32(/* id 4, wireType 0 =*/32).int32(message.type);
+            if (message.isGroup != null && Object.hasOwnProperty.call(message, "isGroup"))
+                writer.uint32(/* id 5, wireType 0 =*/40).bool(message.isGroup);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified Receipt message, length delimited. Does not implicitly {@link wca_chat.Receipt.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {wca_chat.IReceipt} message Receipt message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Receipt.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a Receipt message from the specified reader or buffer.
+         * @function decode
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {wca_chat.Receipt} Receipt
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Receipt.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.Receipt();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1: {
+                        message.messageId = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.chatId = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.readerId = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.type = reader.int32();
+                        break;
+                    }
+                case 5: {
+                        message.isGroup = reader.bool();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a Receipt message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {wca_chat.Receipt} Receipt
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Receipt.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a Receipt message.
+         * @function verify
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        Receipt.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.messageId != null && message.hasOwnProperty("messageId"))
+                if (!$util.isString(message.messageId))
+                    return "messageId: string expected";
+            if (message.chatId != null && message.hasOwnProperty("chatId"))
+                if (!$util.isString(message.chatId))
+                    return "chatId: string expected";
+            if (message.readerId != null && message.hasOwnProperty("readerId"))
+                if (!$util.isString(message.readerId))
+                    return "readerId: string expected";
+            if (message.type != null && message.hasOwnProperty("type"))
+                switch (message.type) {
+                default:
+                    return "type: enum value expected";
+                case 0:
+                case 1:
+                    break;
+                }
+            if (message.isGroup != null && message.hasOwnProperty("isGroup"))
+                if (typeof message.isGroup !== "boolean")
+                    return "isGroup: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates a Receipt message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {wca_chat.Receipt} Receipt
+         */
+        Receipt.fromObject = function fromObject(object) {
+            if (object instanceof $root.wca_chat.Receipt)
+                return object;
+            let message = new $root.wca_chat.Receipt();
+            if (object.messageId != null)
+                message.messageId = String(object.messageId);
+            if (object.chatId != null)
+                message.chatId = String(object.chatId);
+            if (object.readerId != null)
+                message.readerId = String(object.readerId);
+            switch (object.type) {
+            default:
+                if (typeof object.type === "number") {
+                    message.type = object.type;
+                    break;
+                }
+                break;
+            case "DELIVERED":
+            case 0:
+                message.type = 0;
+                break;
+            case "READ":
+            case 1:
+                message.type = 1;
+                break;
+            }
+            if (object.isGroup != null)
+                message.isGroup = Boolean(object.isGroup);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a Receipt message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {wca_chat.Receipt} message Receipt
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        Receipt.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.messageId = "";
+                object.chatId = "";
+                object.readerId = "";
+                object.type = options.enums === String ? "DELIVERED" : 0;
+                object.isGroup = false;
+            }
+            if (message.messageId != null && message.hasOwnProperty("messageId"))
+                object.messageId = message.messageId;
+            if (message.chatId != null && message.hasOwnProperty("chatId"))
+                object.chatId = message.chatId;
+            if (message.readerId != null && message.hasOwnProperty("readerId"))
+                object.readerId = message.readerId;
+            if (message.type != null && message.hasOwnProperty("type"))
+                object.type = options.enums === String ? $root.wca_chat.Receipt.ReceiptType[message.type] === undefined ? message.type : $root.wca_chat.Receipt.ReceiptType[message.type] : message.type;
+            if (message.isGroup != null && message.hasOwnProperty("isGroup"))
+                object.isGroup = message.isGroup;
+            return object;
+        };
+
+        /**
+         * Converts this Receipt to JSON.
+         * @function toJSON
+         * @memberof wca_chat.Receipt
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        Receipt.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for Receipt
+         * @function getTypeUrl
+         * @memberof wca_chat.Receipt
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Receipt.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/wca_chat.Receipt";
+        };
+
+        /**
+         * ReceiptType enum.
+         * @name wca_chat.Receipt.ReceiptType
+         * @enum {number}
+         * @property {number} DELIVERED=0 DELIVERED value
+         * @property {number} READ=1 READ value
+         */
+        Receipt.ReceiptType = (function() {
+            const valuesById = {}, values = Object.create(valuesById);
+            values[valuesById[0] = "DELIVERED"] = 0;
+            values[valuesById[1] = "READ"] = 1;
+            return values;
+        })();
+
+        return Receipt;
+    })();
+
     wca_chat.Command = (function() {
 
         /**
@@ -1385,6 +1714,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @property {wca_chat.IChatMessage|null} [chatMessage] ProtocolWrapper chatMessage
          * @property {wca_chat.IPresence|null} [presence] ProtocolWrapper presence
          * @property {wca_chat.ICommand|null} [command] ProtocolWrapper command
+         * @property {wca_chat.IReceipt|null} [receipt] ProtocolWrapper receipt
          */
 
         /**
@@ -1426,17 +1756,25 @@ export const wca_chat = $root.wca_chat = (() => {
          */
         ProtocolWrapper.prototype.command = null;
 
+        /**
+         * ProtocolWrapper receipt.
+         * @member {wca_chat.IReceipt|null|undefined} receipt
+         * @memberof wca_chat.ProtocolWrapper
+         * @instance
+         */
+        ProtocolWrapper.prototype.receipt = null;
+
         // OneOf field names bound to virtual getters and setters
         let $oneOfFields;
 
         /**
          * ProtocolWrapper content.
-         * @member {"chatMessage"|"presence"|"command"|undefined} content
+         * @member {"chatMessage"|"presence"|"command"|"receipt"|undefined} content
          * @memberof wca_chat.ProtocolWrapper
          * @instance
          */
         Object.defineProperty(ProtocolWrapper.prototype, "content", {
-            get: $util.oneOfGetter($oneOfFields = ["chatMessage", "presence", "command"]),
+            get: $util.oneOfGetter($oneOfFields = ["chatMessage", "presence", "command", "receipt"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -1470,6 +1808,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 $root.wca_chat.Presence.encode(message.presence, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
             if (message.command != null && Object.hasOwnProperty.call(message, "command"))
                 $root.wca_chat.Command.encode(message.command, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.receipt != null && Object.hasOwnProperty.call(message, "receipt"))
+                $root.wca_chat.Receipt.encode(message.receipt, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             return writer;
         };
 
@@ -1514,6 +1854,10 @@ export const wca_chat = $root.wca_chat = (() => {
                     }
                 case 3: {
                         message.command = $root.wca_chat.Command.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 4: {
+                        message.receipt = $root.wca_chat.Receipt.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -1580,6 +1924,16 @@ export const wca_chat = $root.wca_chat = (() => {
                         return "command." + error;
                 }
             }
+            if (message.receipt != null && message.hasOwnProperty("receipt")) {
+                if (properties.content === 1)
+                    return "content: multiple values";
+                properties.content = 1;
+                {
+                    let error = $root.wca_chat.Receipt.verify(message.receipt);
+                    if (error)
+                        return "receipt." + error;
+                }
+            }
             return null;
         };
 
@@ -1609,6 +1963,11 @@ export const wca_chat = $root.wca_chat = (() => {
                 if (typeof object.command !== "object")
                     throw TypeError(".wca_chat.ProtocolWrapper.command: object expected");
                 message.command = $root.wca_chat.Command.fromObject(object.command);
+            }
+            if (object.receipt != null) {
+                if (typeof object.receipt !== "object")
+                    throw TypeError(".wca_chat.ProtocolWrapper.receipt: object expected");
+                message.receipt = $root.wca_chat.Receipt.fromObject(object.receipt);
             }
             return message;
         };
@@ -1640,6 +1999,11 @@ export const wca_chat = $root.wca_chat = (() => {
                 object.command = $root.wca_chat.Command.toObject(message.command, options);
                 if (options.oneofs)
                     object.content = "command";
+            }
+            if (message.receipt != null && message.hasOwnProperty("receipt")) {
+                object.receipt = $root.wca_chat.Receipt.toObject(message.receipt, options);
+                if (options.oneofs)
+                    object.content = "receipt";
             }
             return object;
         };

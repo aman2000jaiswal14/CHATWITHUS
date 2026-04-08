@@ -149,6 +149,37 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         await self.channel_layer.group_discard(target_group, self.channel_name)
                         self.joined_groups.discard(target_group)
 
+                elif wrapper.HasField('receipt'):
+                    # Check license for Read Receipt feature
+                    modules = self.license_info.get('MODULES', '') if self.license_info else ''
+                    if 'READ_RECEIPT' not in modules:
+                        return
+
+                    receipt = wrapper.receipt
+                    status_changed, new_status, sender_username = await self.update_message_receipt_in_db(receipt)
+
+                    if status_changed:
+                        if receipt.is_group:
+                            # Construct an aggregated receipt to update the sender's UI
+                            new_wrapper = messages_pb2.ProtocolWrapper()
+                            new_wrapper.receipt.CopyFrom(receipt)
+                            new_wrapper.receipt.type = 0 if new_status == 1 else 1 # DELIVERED=0, READ=1
+                            encoded = base64.b64encode(new_wrapper.SerializeToString()).decode('ascii')
+                            
+                            # Only notify the original sender that the overall group message status changed
+                            await self.channel_layer.group_send(
+                                f'user_{sender_username}',
+                                {'type': 'chat.message', 'data': encoded}
+                            )
+                        else:
+                            receipt_bytes = wrapper.SerializeToString()
+                            encoded = base64.b64encode(receipt_bytes).decode('ascii')
+                            target_group = f'user_{receipt.chat_id}'
+                            await self.channel_layer.group_send(
+                                target_group,
+                                {'type': 'chat.message', 'data': encoded}
+                            )
+
                 elif wrapper.HasField('presence'):
                     # Broadcast presence to all contacts and groups
                     presence_bytes = wrapper.SerializeToString()
@@ -383,3 +414,69 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return group.members.filter(username=username).exists()
         except (ChatGroup.DoesNotExist, ValueError):
             return False
+
+    @database_sync_to_async
+    def update_message_receipt_in_db(self, receipt):
+        """Update the read_receipt status of a message in the database."""
+        from .models import Message as DBMessage, ChatGroup
+        try:
+            # ReceiptType: DELIVERED=0, READ=1
+            # Model read_receipt: 1: Delivered, 2: Read
+            new_status = 1 if receipt.type == 0 else 2
+            
+            msg = DBMessage.objects.filter(message_id=receipt.message_id).first()
+            if not msg:
+                return False, None, None
+
+            if not receipt.is_group:
+                # Simple DM update: only upgrade status
+                if msg.read_receipt < new_status:
+                    msg.read_receipt = new_status
+                    msg.save(update_fields=['read_receipt'])
+                    return True, new_status, msg.sender.username
+                return False, None, None
+            else:
+                # Group Chat update: track individual member status
+                group_receipts = dict(msg.group_receipts) if msg.group_receipts else {}
+                current_user_status = group_receipts.get(receipt.reader_id, 0)
+                
+                if current_user_status >= new_status:
+                    return False, None, None
+                    
+                group_receipts[receipt.reader_id] = new_status
+                msg.group_receipts = group_receipts
+                msg.save(update_fields=['group_receipts'])
+                
+                try:
+                    group = ChatGroup.objects.get(id=int(receipt.chat_id))
+                    # Check threshold among all members except sender
+                    members = group.members.exclude(id=msg.sender.id)
+                    member_count = members.count()
+                    
+                    if member_count == 0:
+                        return False, None, None
+                        
+                    min_status = 2
+                    members_with_receipts = 0
+                    
+                    for m in members:
+                        ms = group_receipts.get(m.username, 0)
+                        if ms < min_status:
+                            min_status = ms
+                        if ms > 0:
+                            members_with_receipts += 1
+                            
+                    if members_with_receipts < member_count:
+                        min_status = 0
+                        
+                    if min_status > msg.read_receipt:
+                        msg.read_receipt = min_status
+                        msg.save(update_fields=['read_receipt'])
+                        return True, min_status, msg.sender.username
+                except (ChatGroup.DoesNotExist, ValueError):
+                    pass
+                    
+                return False, None, None
+        except Exception as e:
+            print(f"[DB RECEIPT ERROR] {e}")
+            return False, None, None

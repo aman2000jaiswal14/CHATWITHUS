@@ -77,6 +77,8 @@ class Message(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True)
     is_expired = models.BooleanField(default=False)
     is_emergency_broadcast = models.BooleanField(default=False)
+    read_receipt = models.IntegerField(default=0)  # 0: Sent, 1: Delivered, 2: Read
+    group_receipts = models.JSONField(default=dict, blank=True)  # {"user_id": receipt_status}
 
     class Meta:
         ordering = ['timestamp']

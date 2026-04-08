@@ -33,11 +33,11 @@ export namespace wca_chat {
         /** ChatMessage isGroupMessage */
         isGroupMessage?: (boolean|null);
 
+        /** ChatMessage timerSeconds */
+        timerSeconds?: (number|null);
+
         /** ChatMessage attachment */
         attachment?: (wca_chat.ChatMessage.IAttachment|null);
-
-        /** ChatMessage expiresAt */
-        expiresAt?: (number|Long|null);
     }
 
     /** Represents a ChatMessage. */
@@ -76,11 +76,11 @@ export namespace wca_chat {
         /** ChatMessage isGroupMessage. */
         public isGroupMessage: boolean;
 
+        /** ChatMessage timerSeconds. */
+        public timerSeconds: number;
+
         /** ChatMessage attachment. */
         public attachment?: (wca_chat.ChatMessage.IAttachment|null);
-
-        /** ChatMessage expiresAt. */
-        public expiresAt: (number|Long);
 
         /**
          * Creates a new ChatMessage instance using the specified properties.
@@ -407,6 +407,136 @@ export namespace wca_chat {
         }
     }
 
+    /** Properties of a Receipt. */
+    interface IReceipt {
+
+        /** Receipt messageId */
+        messageId?: (string|null);
+
+        /** Receipt chatId */
+        chatId?: (string|null);
+
+        /** Receipt readerId */
+        readerId?: (string|null);
+
+        /** Receipt type */
+        type?: (wca_chat.Receipt.ReceiptType|null);
+
+        /** Receipt isGroup */
+        isGroup?: (boolean|null);
+    }
+
+    /** Represents a Receipt. */
+    class Receipt implements IReceipt {
+
+        /**
+         * Constructs a new Receipt.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: wca_chat.IReceipt);
+
+        /** Receipt messageId. */
+        public messageId: string;
+
+        /** Receipt chatId. */
+        public chatId: string;
+
+        /** Receipt readerId. */
+        public readerId: string;
+
+        /** Receipt type. */
+        public type: wca_chat.Receipt.ReceiptType;
+
+        /** Receipt isGroup. */
+        public isGroup: boolean;
+
+        /**
+         * Creates a new Receipt instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Receipt instance
+         */
+        public static create(properties?: wca_chat.IReceipt): wca_chat.Receipt;
+
+        /**
+         * Encodes the specified Receipt message. Does not implicitly {@link wca_chat.Receipt.verify|verify} messages.
+         * @param message Receipt message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: wca_chat.IReceipt, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Receipt message, length delimited. Does not implicitly {@link wca_chat.Receipt.verify|verify} messages.
+         * @param message Receipt message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: wca_chat.IReceipt, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Receipt message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Receipt
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): wca_chat.Receipt;
+
+        /**
+         * Decodes a Receipt message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Receipt
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): wca_chat.Receipt;
+
+        /**
+         * Verifies a Receipt message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Receipt message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Receipt
+         */
+        public static fromObject(object: { [k: string]: any }): wca_chat.Receipt;
+
+        /**
+         * Creates a plain object from a Receipt message. Also converts values to other types if specified.
+         * @param message Receipt
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: wca_chat.Receipt, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Receipt to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Receipt
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    namespace Receipt {
+
+        /** ReceiptType enum. */
+        enum ReceiptType {
+            DELIVERED = 0,
+            READ = 1
+        }
+    }
+
     /** Properties of a Command. */
     interface ICommand {
 
@@ -530,6 +660,9 @@ export namespace wca_chat {
 
         /** ProtocolWrapper command */
         command?: (wca_chat.ICommand|null);
+
+        /** ProtocolWrapper receipt */
+        receipt?: (wca_chat.IReceipt|null);
     }
 
     /** Represents a ProtocolWrapper. */
@@ -550,8 +683,11 @@ export namespace wca_chat {
         /** ProtocolWrapper command. */
         public command?: (wca_chat.ICommand|null);
 
+        /** ProtocolWrapper receipt. */
+        public receipt?: (wca_chat.IReceipt|null);
+
         /** ProtocolWrapper content. */
-        public content?: ("chatMessage"|"presence"|"command");
+        public content?: ("chatMessage"|"presence"|"command"|"receipt");
 
         /**
          * Creates a new ProtocolWrapper instance using the specified properties.

@@ -156,6 +156,15 @@ export async function markRead(chatId, isGroup) {
     return res.json();
 }
 
+export async function trackReceipt(messageId, status) {
+    const res = await fetch(getUrl('/chat/api/track_receipt/'), {
+        method: 'POST', credentials: 'same-origin',
+        headers: getHeaders('POST'),
+        body: JSON.stringify({ message_id: messageId, status: status }),
+    });
+    return res.json();
+}
+
 export async function uploadAttachment(file) {
     const formData = new FormData();
     formData.append('file', file);

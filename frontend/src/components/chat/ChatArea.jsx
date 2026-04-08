@@ -1,9 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer } from 'lucide-react';
+import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer, Check } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
 import { markRead, uploadAttachment } from '../../services/api';
 import encryptionService from '../../services/EncryptionService';
+import WebSocketClient from '../../services/WebSocketClient';
+
+const StatusTicks = ({ status }) => {
+    if (!(window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT')) return null;
+    if (status === 2) {
+        return (
+            <div className="flex -space-x-1" title="Read">
+                <Check size={10} className="text-blue-400" strokeWidth={3} />
+                <Check size={10} className="text-blue-400" strokeWidth={3} />
+            </div>
+        );
+    }
+    if (status === 1) {
+        return (
+            <div className="flex -space-x-1" title="Delivered">
+                <Check size={10} className="text-slate-500" strokeWidth={3} />
+                <Check size={10} className="text-slate-500" strokeWidth={3} />
+            </div>
+        );
+    }
+    return <Check size={10} className="text-slate-500" strokeWidth={3} title="Sent" />;
+};
 
 const getFullUrl = (url) => {
     if (!url) return '';
@@ -445,7 +467,8 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                 content: content,
                                 attachment: m.attachment,
                                 is_expired: m.is_expired,
-                                expires_at: m.expires_at ? new Date(m.expires_at).getTime() : null
+                                expires_at: m.expires_at ? new Date(m.expires_at).getTime() : null,
+                                readReceipt: m.readReceipt
                             };
                         }));
                         setMessages(activeChatId, processed);
@@ -501,9 +524,25 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     // Consolidated effect for marking as read with debounce to prevent duplicate calls on load
     useEffect(() => {
         if (!activeChatId) return;
+        const isLicensed = (window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT');
+        if (!isLicensed) return;
 
         const timer = setTimeout(() => {
             markRead(activeChatId, isGroupChat).catch(console.error);
+
+            // Send READ receipt via WebSocket for the last message
+            const currentMsgs = useChatStore.getState().messagesByChat[activeChatId] || [];
+            if (currentMsgs.length > 0) {
+                const last = currentMsgs[currentMsgs.length - 1];
+                if (String(last.senderId).toLowerCase() !== String(currentUser).toLowerCase()) {
+                    WebSocketClient.getInstance().sendMessageReceipt(
+                        last.messageId,
+                        isGroupChat ? activeChatId : last.senderId,
+                        isGroupChat,
+                        1 // READ
+                    );
+                }
+            }
         }, 300);
 
         const handleFocus = () => markRead(activeChatId, isGroupChat).catch(console.error);
@@ -919,6 +958,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                     <div className="flex items-baseline gap-1.5 mb-0.5">
                                         <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : (isEmergency ? 'text-red-500' : 'text-emerald-500')}`}>{isOwn ? 'ME' : msg.senderId}</span>
                                         <span className="text-[9px] text-slate-600 font-mono">{formatTimeShort(msg.sentAt)}</span>
+                                        {isOwn && <StatusTicks status={msg.readReceipt} />}
                                         {msg.timerSeconds > 0 && !isExpired && (
                                             <span className="text-[9px] text-amber-400 font-mono flex items-center gap-0.5">
                                                 <Timer size={9} /> {msg.timerSeconds >= 3600 ? `${Math.floor(msg.timerSeconds / 3600)}h` : msg.timerSeconds >= 60 ? `${Math.floor(msg.timerSeconds / 60)}m` : `${msg.timerSeconds}s`}
@@ -1082,14 +1122,16 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                 />
                             </div>
 
-                            <button
-                                onClick={isRecording ? stopRecording : startRecording}
-                                disabled={isUploading}
-                                className={`p-2 rounded-xl transition-all flex-shrink-0 flex items-center justify-center ${isRecording ? 'bg-red-500 text-white animate-pulse' : (isEmergency ? 'bg-red-900/20 text-red-400 hover:bg-red-900/40' : 'bg-slate-800 text-slate-400 hover:text-emerald-400 hover:bg-slate-700')}`}
-                                title={isRecording ? "Stop Recording" : "Voice Message"}
-                            >
-                                <Mic size={18} />
-                            </button>
+                            {(window.CWU_VERIFIED_MODULES || []).includes('VOICE') && (
+                                <button
+                                    onClick={isRecording ? stopRecording : startRecording}
+                                    disabled={isUploading}
+                                    className={`p-2 rounded-xl transition-all flex-shrink-0 flex items-center justify-center ${isRecording ? 'bg-red-500 text-white animate-pulse' : (isEmergency ? 'bg-red-950/20 text-red-400 hover:bg-red-900/40' : 'bg-slate-800 text-slate-400 hover:text-emerald-400 hover:bg-slate-700')}`}
+                                    title={isRecording ? "Stop Recording" : "Voice Message"}
+                                >
+                                    <Mic size={18} />
+                                </button>
+                            )}
 
                             <button
                                 onClick={handleSend}
