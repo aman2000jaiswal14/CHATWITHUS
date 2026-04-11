@@ -105,10 +105,10 @@ class Message(models.Model):
 class UserStatus(models.Model):
     """Persisted user activity status."""
     STATUS_CHOICES = [
-        (0, 'Online'),
+        (0, 'Available'),
         (1, 'Away'),
-        (2, 'Sleeping'),
-        (3, 'Working'),
+        (2, 'Idle'),
+        (3, 'Busy'),
     ]
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,

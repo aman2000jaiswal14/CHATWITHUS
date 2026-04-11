@@ -21,7 +21,7 @@ Users a `oneof` field to handle different message types.
 
 ### `Presence`
 - `user_id` (string): Username.
-- `status` (enum): `ONLINE(0)`, `AWAY(1)`, `SLEEPING(2)`, `ON_MISSION(3)`.
+- `status` (enum): `AVAILABLE(0)`, `AWAY(1)`, `IDLE(2)`, `BUSY(3)`.
 
 ### `Command`
 - `type` (enum): `SUBSCRIBE_GROUP(0)`, `UNSUBSCRIBE_GROUP(1)`.

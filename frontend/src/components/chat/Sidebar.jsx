@@ -11,10 +11,10 @@ const TABS = [
 ];
 
 const STATUS_OPTIONS = [
-    { value: 0, label: 'Active', color: 'bg-green-500', icon: '🟢' },
+    { value: 0, label: 'Available', color: 'bg-green-500', icon: '🟢' },
     { value: 1, label: 'Away', color: 'bg-yellow-500', icon: '🟡' },
-    { value: 2, label: 'Sleeping', color: 'bg-blue-400', icon: '🔵' },
-    { value: 3, label: 'Working', color: 'bg-red-500', icon: '🔴' },
+    { value: 2, label: 'Idle', color: 'bg-blue-400', icon: '🔵' },
+    { value: 3, label: 'Busy', color: 'bg-red-500', icon: '🔴' },
 ];
 
 const Sidebar = ({ onSelectChat }) => {
@@ -46,10 +46,10 @@ const Sidebar = ({ onSelectChat }) => {
         const p = presence[username];
         if (!p || !p.is_online) return 'Offline';
         switch (p.status) {
-            case 0: return 'Online';
+            case 0: return 'Available';
             case 1: return 'Away';
-            case 2: return 'Sleeping';
-            case 3: return 'Working';
+            case 2: return 'Idle';
+            case 3: return 'Busy';
             default: return 'Online';
         }
     };
