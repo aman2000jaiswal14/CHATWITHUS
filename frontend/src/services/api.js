@@ -10,7 +10,7 @@ function getUrl(path) {
 
 function getHeaders(method, isMultipart = false) {
     const headers = {
-        'X-Chat-User': config().USER_ID || ''
+        'Authorization': `Bearer ${config().TOKEN || ''}`
     };
     if (!isMultipart) {
         headers['Content-Type'] = 'application/json';

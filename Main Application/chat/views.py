@@ -13,11 +13,19 @@ from channels.layers import get_channel_layer
 User = get_user_model()
 
 
+from .services.auth import verify_jwt_token, generate_jwt_token
+
 def get_authenticated_user(request):
-    """Identify user from X-Chat-User header for plug-and-play mode."""
-    username = request.headers.get('X-Chat-User')
+    """Identify user via Bearer JWT token."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None
+    
+    token = auth_header.split(' ')[1]
+    username = verify_jwt_token(token)
     if not username:
         return None
+        
     try:
         return User.objects.get(username=username)
     except User.DoesNotExist:
@@ -923,6 +931,21 @@ def api_mark_read(request):
             Message.objects.filter(sender__username=chat_id, recipient=user, read_receipt__lt=2).update(read_receipt=2)
 
     return JsonResponse({'status': 'ok'})
+
+@csrf_exempt
+@require_POST
+def api_generate_token(request):
+    """Generate a JWT token for a given user. (For dev/demo testing)"""
+    try:
+        data = json.loads(request.body)
+        username = data.get('username')
+        if not username:
+             return JsonResponse({'error': 'username required'}, status=400)
+             
+        token = generate_jwt_token(username)
+        return JsonResponse({'token': token})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @csrf_exempt

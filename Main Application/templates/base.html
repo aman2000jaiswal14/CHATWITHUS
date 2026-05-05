@@ -41,6 +41,7 @@
     <script id="chat-config" type="application/json">
         {
             "USER_ID": "{{ user.username|escapejs }}",
+            "TOKEN": "{{ user.jwt_token|escapejs }}",
             "USER_NAME": "{{ user.name|default:user.username|escapejs }}",
             "USER_ROLE": "{{ user.role|escapejs }}",
             "API_USERS_URL": "/chat/api/users/",

@@ -20,6 +20,7 @@ function App() {
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
+  const [isAuthReady, setIsAuthReady] = React.useState(!!window.CHAT_CONFIG?.TOKEN);
 
   const config = window.CHAT_CONFIG || {};
   const wsUrl = config.WS_URL ? config.WS_URL.replace(/\/chat\/ws\/chat\/[^/]+\//, `/chat/ws/chat/${currentUser}/`) : `ws://${window.location.host}/chat/ws/chat/${currentUser}/`;
@@ -41,15 +42,47 @@ function App() {
   useEffect(() => {
     // ONLY proceed if license is valid AND user is registered
     if (licenseState.valid && isRegistered) {
-      const wsClient = WebSocketClient.getInstance(wsUrl, currentUser);
-      wsClient.connect();
+      let isSubscribed = true;
+      let wsClient = null;
 
-      fetchMuteSettings().then(data => {
-        setIsMuted(!!data.is_muted);
-      }).catch(err => console.error(err));
+      const initConnection = async () => {
+        try {
+          if (!window.CHAT_CONFIG.TOKEN) {
+            const baseUrl = (config.API_BASE_URL || '').replace(/\/$/, '');
+            const res = await fetch(`${baseUrl}/chat/api/auth/token/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: currentUser })
+            });
+            const data = await res.json();
+            if (data.token) {
+              window.CHAT_CONFIG.TOKEN = data.token;
+            } else {
+              console.error("[Auth] Failed to retrieve token", data);
+              return;
+            }
+          }
+
+          if (!isSubscribed) return;
+          setIsAuthReady(true);
+
+          const fullWsUrl = `${wsUrl}?token=${window.CHAT_CONFIG.TOKEN}`;
+          wsClient = WebSocketClient.getInstance(fullWsUrl, currentUser);
+          wsClient.connect();
+
+          fetchMuteSettings().then(data => {
+            if (isSubscribed) setIsMuted(!!data.is_muted);
+          }).catch(err => console.error(err));
+        } catch (err) {
+          console.error("[Auth] Token fetch error", err);
+        }
+      };
+
+      initConnection();
 
       return () => {
-        wsClient.disconnect();
+        isSubscribed = false;
+        if (wsClient) wsClient.disconnect();
       };
     }
   }, [wsUrl, currentUser, isRegistered, licenseState.valid]);
@@ -157,6 +190,14 @@ function App() {
             </p>
           </div>
         </div>
+      </div>
+    );
+  }
+  if (!isAuthReady && licenseState.valid && isRegistered) {
+    return (
+      <div className="flex flex-col h-full w-full items-center justify-center bg-[#0a0f1c] text-slate-400">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+        <p className="mt-4 text-xs uppercase tracking-widest font-bold">Authenticating...</p>
       </div>
     );
   }

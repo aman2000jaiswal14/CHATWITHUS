@@ -37,7 +37,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
             const response = await fetch(apiUrl, {
                 credentials: 'same-origin',
                 headers: {
-                    'X-Chat-User': config.USER_ID || ''
+                    'Authorization': `Bearer ${config.TOKEN || ''}`
                 }
             });
 

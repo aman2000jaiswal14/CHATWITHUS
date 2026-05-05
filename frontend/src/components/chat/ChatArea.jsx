@@ -370,7 +370,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
             const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=${offset}`;
 
             try {
-                const res = await fetch(url, { headers: { 'X-Chat-User': config.USER_ID || '' } });
+                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${config.TOKEN || ''}` } });
                 const data = await res.json();
                 if (data.messages && data.messages.length > 0) {
                     const processed = await Promise.all(data.messages.map(async m => {
@@ -437,7 +437,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
 
             fetch(url, {
                 headers: {
-                    'X-Chat-User': config.USER_ID || ''
+                    'Authorization': `Bearer ${config.TOKEN || ''}`
                 }
             })
                 .then(res => res.json())
@@ -478,7 +478,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                         const hasLazyLoading = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('LAZYLOADING');
                         if (hasLazyLoading && processed.length === 12) {
                             const nextUrl = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=12`;
-                            fetch(nextUrl, { headers: { 'X-Chat-User': config.USER_ID || '' } })
+                            fetch(nextUrl, { headers: { 'Authorization': `Bearer ${config.TOKEN || ''}` } })
                                 .then(res => res.json())
                                 .then(async nextData => {
                                     if (nextData.messages && nextData.messages.length > 0) {

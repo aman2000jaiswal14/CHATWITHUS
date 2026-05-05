@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/upload/', views.api_upload_attachment, name='chat_upload_attachment'),
     path('api/register/', views.api_register, name='chat_register'),
     path('api/settings/mute/', views.api_mute_settings, name='chat_mute_settings'),
+    path('api/auth/token/', views.api_generate_token, name='chat_generate_token'),
 ]

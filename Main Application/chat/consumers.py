@@ -22,7 +22,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return LicensingService.get_license_info()
 
     async def connect(self):
-        self.user_id = self.scope['url_route']['kwargs']['user_id']
+        query_string = self.scope.get('query_string', b'').decode('utf-8')
+        token = None
+        for param in query_string.split('&'):
+            if param.startswith('token='):
+                token = param.split('=')[1]
+                break
+                
+        if not token:
+            print("[WS AUTH ERROR] No token provided")
+            await self.close(code=4003)
+            return
+            
+        from .services.auth import verify_jwt_token
+        verified_username = verify_jwt_token(token)
+        if not verified_username:
+            print("[WS AUTH ERROR] Invalid or expired token")
+            await self.close(code=4003)
+            return
+            
+        expected_user_id = self.scope['url_route']['kwargs']['user_id']
+        if str(verified_username) != str(expected_user_id):
+            print(f"[WS AUTH ERROR] User ID mismatch. URL: {expected_user_id}, Token: {verified_username}")
+            await self.close(code=4003)
+            return
+
+        self.user_id = verified_username
         self.personal_group = f'user_{self.user_id}'
         self.license_info = await self.fetch_license()
 

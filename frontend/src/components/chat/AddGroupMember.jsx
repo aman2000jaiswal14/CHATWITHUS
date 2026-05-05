@@ -55,7 +55,7 @@ const AddGroupMember = ({ onBack }) => {
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': config.CSRF_TOKEN || '',
-                    'X-Chat-User': config.USER_ID || '',
+                    'Authorization': `Bearer ${config.TOKEN || ''}`,
                 },
                 body: JSON.stringify({ username }),
             });
