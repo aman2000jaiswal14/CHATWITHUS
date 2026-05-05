@@ -144,7 +144,6 @@ def api_bookmarks(request):
 
 
 # 
-@csrf_exempt
 @require_POST
 def api_bookmark_add(request):
     """Bookmark a user (verified)."""
@@ -173,7 +172,6 @@ def api_bookmark_add(request):
 
 
 
-@csrf_exempt
 @require_POST
 def api_bookmark_remove(request):
     """Downgrade a bookmark to unverified (preserves chat history)."""
@@ -191,7 +189,6 @@ def api_bookmark_remove(request):
 
 
 
-@csrf_exempt
 @require_POST
 def api_bookmark_verify(request):
     """Verify (accept) an unverified contact."""
@@ -316,7 +313,6 @@ def api_groups(request):
 
 
 
-@csrf_exempt
 @require_POST
 def api_group_create(request):
     """Create a new chat group. Creator is auto-added as admin."""
@@ -360,7 +356,6 @@ def api_group_create(request):
 
 
 
-@csrf_exempt
 @require_POST
 def api_group_add_member(request, group_id):
     """Add a member to a group (admin only). Prevents duplicates."""
@@ -388,7 +383,6 @@ def api_group_add_member(request, group_id):
 
 
 
-@csrf_exempt
 @require_POST
 def api_group_remove_member(request, group_id):
     """Remove a member from a group (admin only)."""
@@ -442,7 +436,6 @@ def api_group_members(request, group_id):
 
 
 
-@csrf_exempt
 @require_POST
 def api_group_leave(request, group_id):
     """Leave a group. Auto-assigns admin if last admin leaves. Deletes group if empty."""
@@ -478,7 +471,6 @@ def api_group_leave(request, group_id):
 
 
 
-@csrf_exempt
 @require_POST
 def api_group_make_admin(request, group_id):
     """Promote a member to admin (admin only)."""
@@ -615,7 +607,6 @@ def api_chat_history(request, chat_id):
 
 
 
-@csrf_exempt
 @require_POST
 def api_group_rename(request, group_id):
     """Rename a group (admin only)."""
@@ -783,7 +774,6 @@ def api_export_messages(request, chat_id):
 
 
 
-@csrf_exempt
 @require_POST
 def api_set_status(request):
     """Set the user's activity status and broadcast to contacts."""
@@ -852,7 +842,6 @@ def api_get_statuses(request):
     return JsonResponse({'statuses': statuses})
 
 
-@csrf_exempt
 @require_POST
 def api_mark_read(request):
     """Update the read cursor for a chat (DM or group)."""
@@ -932,15 +921,21 @@ def api_mark_read(request):
 
     return JsonResponse({'status': 'ok'})
 
-@csrf_exempt
 @require_POST
 def api_generate_token(request):
-    """Generate a JWT token for a given user. (For dev/demo testing)"""
+    """Generate a JWT token for a given user. (Requires Identity Signature)"""
     try:
         data = json.loads(request.body)
         username = data.get('username')
+        signature = data.get('signature')
+        
         if not username:
              return JsonResponse({'error': 'username required'}, status=400)
+        
+        # Verify HMAC signature from host
+        from .services.auth import verify_hmac_signature
+        if not verify_hmac_signature(username, signature):
+            return JsonResponse({'error': 'invalid identity signature'}, status=403)
              
         token = generate_jwt_token(username)
         return JsonResponse({'token': token})
@@ -948,7 +943,6 @@ def api_generate_token(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_POST
 def api_track_receipt(request):
     """Track the read receipt for a specific message by ID."""
@@ -1013,7 +1007,6 @@ def api_track_receipt(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_POST
 def api_upload_attachment(request):
     """Upload a file and return its metadata."""
@@ -1055,7 +1048,6 @@ def api_upload_attachment(request):
     })
 
 
-@csrf_exempt
 @require_POST
 def api_register(request):
     """Register a new user with default credentials."""
@@ -1084,7 +1076,6 @@ def api_register(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-@csrf_exempt
 def api_mute_settings(request):
     """Get or update the user's notification mute setting."""
     user = get_authenticated_user(request)

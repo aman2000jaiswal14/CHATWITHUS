@@ -52,7 +52,10 @@ function App() {
             const res = await fetch(`${baseUrl}/chat/api/auth/token/`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: currentUser })
+              body: JSON.stringify({ 
+                username: currentUser,
+                signature: config.IDENTITY_SIGNATURE 
+              })
             });
             const data = await res.json();
             if (data.token) {

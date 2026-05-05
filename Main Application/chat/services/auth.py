@@ -25,3 +25,20 @@ def verify_jwt_token(token):
     except jwt.InvalidTokenError:
         print("[Auth] Invalid token")
         return None
+
+import hmac
+import hashlib
+
+def verify_hmac_signature(username, signature):
+    """
+    Verify the identity signature provided by the host application.
+    The host signs the username using HMAC-SHA256 with the Django SECRET_KEY.
+    """
+    if not signature:
+        return False
+    expected = hmac.new(
+        settings.SECRET_KEY.encode('utf-8'),
+        username.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)

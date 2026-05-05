@@ -8,6 +8,7 @@
 <script id="chat-config" type="application/json">
 {
     "USER_ID": {{ user.username | tojson }},
+    "IDENTITY_SIGNATURE": {{ identity_signature | tojson }},
     "API_BASE_URL": "https://127.0.0.1:8000",
     "WS_URL": "wss://127.0.0.1:8000/chat/ws/chat/{{ user.username | urlencode }}/",
     "LICENSE_INFO": {{ CWU_LICENSE_INFO | tojson }}

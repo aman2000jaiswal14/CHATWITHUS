@@ -78,10 +78,23 @@ def login():
 from flask import send_from_directory
 import os
     
+import hmac
+import hashlib
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    return render_template("dashboard.html", user=current_user)
+    # In production, this should match your Django SECRET_KEY
+    SHARED_SECRET = 'django-insecure-(5)l+imw=lio-m6&zx6c(9-5v3g3o8ec8kxdfjm1s06xl=nrc6'
+    
+    # Generate HMAC-SHA256 signature for the current user's username
+    signature = hmac.new(
+        SHARED_SECRET.encode('utf-8'),
+        current_user.username.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    
+    return render_template("dashboard.html", user=current_user, identity_signature=signature)
 
 
 @app.route("/logout")
