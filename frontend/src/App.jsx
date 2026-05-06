@@ -144,7 +144,7 @@ function App() {
     setCurrentView('contacts');
   };
 
-  const handleSendMessage = (text, attachment = null, timerSeconds = 0) => {
+  const handleSendMessage = (text, attachment = null, timerSeconds = 0, replyToMessageId = null) => {
     if (!activeChatId) return;
     const wsClient = WebSocketClient.getInstance();
 
@@ -153,7 +153,7 @@ function App() {
       msgType = 1; // PTT
     }
 
-    wsClient.sendMessage(activeChatId, text, isGroupChat, msgType, attachment, timerSeconds);
+    wsClient.sendMessage(activeChatId, text, isGroupChat, msgType, attachment, timerSeconds, replyToMessageId);
   };
 
   if (!isRegistered) {

@@ -36,6 +36,9 @@ export namespace wca_chat {
         /** ChatMessage timerSeconds */
         timerSeconds?: (number|null);
 
+        /** ChatMessage replyToMessageId */
+        replyToMessageId?: (string|null);
+
         /** ChatMessage attachment */
         attachment?: (wca_chat.ChatMessage.IAttachment|null);
     }
@@ -78,6 +81,9 @@ export namespace wca_chat {
 
         /** ChatMessage timerSeconds. */
         public timerSeconds: number;
+
+        /** ChatMessage replyToMessageId. */
+        public replyToMessageId: string;
 
         /** ChatMessage attachment. */
         public attachment?: (wca_chat.ChatMessage.IAttachment|null);

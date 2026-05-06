@@ -32,6 +32,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @property {boolean|null} [isHighPriority] ChatMessage isHighPriority
          * @property {boolean|null} [isGroupMessage] ChatMessage isGroupMessage
          * @property {number|null} [timerSeconds] ChatMessage timerSeconds
+         * @property {string|null} [replyToMessageId] ChatMessage replyToMessageId
          * @property {wca_chat.ChatMessage.IAttachment|null} [attachment] ChatMessage attachment
          */
 
@@ -131,6 +132,14 @@ export const wca_chat = $root.wca_chat = (() => {
         ChatMessage.prototype.timerSeconds = 0;
 
         /**
+         * ChatMessage replyToMessageId.
+         * @member {string} replyToMessageId
+         * @memberof wca_chat.ChatMessage
+         * @instance
+         */
+        ChatMessage.prototype.replyToMessageId = "";
+
+        /**
          * ChatMessage attachment.
          * @member {wca_chat.ChatMessage.IAttachment|null|undefined} attachment
          * @memberof wca_chat.ChatMessage
@@ -184,6 +193,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 $root.wca_chat.ChatMessage.Attachment.encode(message.attachment, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
             if (message.timerSeconds != null && Object.hasOwnProperty.call(message, "timerSeconds"))
                 writer.uint32(/* id 11, wireType 0 =*/88).int32(message.timerSeconds);
+            if (message.replyToMessageId != null && Object.hasOwnProperty.call(message, "replyToMessageId"))
+                writer.uint32(/* id 12, wireType 2 =*/98).string(message.replyToMessageId);
             return writer;
         };
 
@@ -256,6 +267,10 @@ export const wca_chat = $root.wca_chat = (() => {
                     }
                 case 11: {
                         message.timerSeconds = reader.int32();
+                        break;
+                    }
+                case 12: {
+                        message.replyToMessageId = reader.string();
                         break;
                     }
                 case 10: {
@@ -335,6 +350,9 @@ export const wca_chat = $root.wca_chat = (() => {
             if (message.timerSeconds != null && message.hasOwnProperty("timerSeconds"))
                 if (!$util.isInteger(message.timerSeconds))
                     return "timerSeconds: integer expected";
+            if (message.replyToMessageId != null && message.hasOwnProperty("replyToMessageId"))
+                if (!$util.isString(message.replyToMessageId))
+                    return "replyToMessageId: string expected";
             if (message.attachment != null && message.hasOwnProperty("attachment")) {
                 let error = $root.wca_chat.ChatMessage.Attachment.verify(message.attachment);
                 if (error)
@@ -418,6 +436,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 message.isGroupMessage = Boolean(object.isGroupMessage);
             if (object.timerSeconds != null)
                 message.timerSeconds = object.timerSeconds | 0;
+            if (object.replyToMessageId != null)
+                message.replyToMessageId = String(object.replyToMessageId);
             if (object.attachment != null) {
                 if (typeof object.attachment !== "object")
                     throw TypeError(".wca_chat.ChatMessage.attachment: object expected");
@@ -465,6 +485,7 @@ export const wca_chat = $root.wca_chat = (() => {
                 object.isGroupMessage = false;
                 object.attachment = null;
                 object.timerSeconds = 0;
+                object.replyToMessageId = "";
             }
             if (message.messageId != null && message.hasOwnProperty("messageId"))
                 object.messageId = message.messageId;
@@ -494,6 +515,8 @@ export const wca_chat = $root.wca_chat = (() => {
                 object.attachment = $root.wca_chat.ChatMessage.Attachment.toObject(message.attachment, options);
             if (message.timerSeconds != null && message.hasOwnProperty("timerSeconds"))
                 object.timerSeconds = message.timerSeconds;
+            if (message.replyToMessageId != null && message.hasOwnProperty("replyToMessageId"))
+                object.replyToMessageId = message.replyToMessageId;
             return object;
         };
 

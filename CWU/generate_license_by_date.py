@@ -96,7 +96,7 @@ if __name__ == "__main__":
         project = sys.argv[5] if len(sys.argv) > 5 else "ChatWithUs"
         version = sys.argv[6] if len(sys.argv) > 6 else "1.0.0"
         desc = sys.argv[7] if len(sys.argv) > 7 else "ChatWithUs Enterprise License"
-        modules = sys.argv[8] if len(sys.argv) > 8 else "VOICE,MARKDOWN,E2E,NOTIFICATIONS"
+        modules = sys.argv[8] if len(sys.argv) > 8 else "VOICE,MARKDOWN,E2E,NOTIFICATIONS,REPLY"
         allowed_chars = sys.argv[9] if len(sys.argv) > 9 else r"^[A-Za-z0-9\s.,!?'\"@_\-+*~\\`]+$"
         
         generate_license_by_date(name, date_str, ltype, provided, project, version, desc, modules, allowed_chars)

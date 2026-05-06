@@ -48,7 +48,7 @@ def load_private_key():
             password=None
         )
 
-def generate_license(customer_name, days_valid=365, license_type="PREMIUM", provided_to="ABC", project="ChatWithUs", version="1.0.0", description="ChatWithUs Enterprise License"):
+def generate_license(customer_name, days_valid=365, license_type="PREMIUM", provided_to="ABC", project="ChatWithUs", version="1.0.0", description="ChatWithUs Enterprise License", modules=None):
     """Generate a signed license file in text format."""
     if not os.path.exists(PRIVATE_KEY_PATH):
         generate_keys()
@@ -67,6 +67,8 @@ ISSUED: {issued_at}
 VALID UNTIL: {expiry_date}
 LICENSE TYPE: {license_type}
 """
+    if modules:
+        content += f"MODULES: {modules}\n"
     
     data_bytes = content.strip().encode('utf-8')
     
@@ -107,5 +109,6 @@ if __name__ == "__main__":
         project = sys.argv[5] if len(sys.argv) > 5 else "ChatWithUs"
         version = sys.argv[6] if len(sys.argv) > 6 else "1.0.0"
         desc = sys.argv[7] if len(sys.argv) > 7 else "ChatWithUs Enterprise License"
+        modules = sys.argv[8] if len(sys.argv) > 8 else "REPLY,VOICE,E2E,NOTIFICATIONS,LAZYLOADING,READ_RECEIPT"
         
-        generate_license(name, days, ltype, provided, project, version, desc)
+        generate_license(name, days, ltype, provided, project, version, desc, modules)

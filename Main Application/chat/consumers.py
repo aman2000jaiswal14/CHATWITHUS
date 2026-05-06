@@ -102,6 +102,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         print(f"[AUTH WARN] Enforcing sender_id to {self.user_id} (attempted {message.sender_id})")
                         message.sender_id = self.user_id
 
+                    # License check for Reply feature
+                    if message.reply_to_message_id:
+                        modules = self.license_info.get('MODULES', '') if self.license_info else ''
+                        if 'REPLY' not in modules:
+                            print(f"[LICENSE ERROR] User {self.user_id} attempted to reply without REPLY module license")
+                            return
+
                     # Check if this is an emergency broadcast BEFORE group membership check
                     is_emergency = message.target_id.upper() == "EMERGENCY"
 
@@ -366,6 +373,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'content': content,
                         'is_emergency_broadcast': True,
                         'expires_at': expires_at,
+                        'reply_to_message_id': message.reply_to_message_id if message.reply_to_message_id else None,
                     }
                 )
                 if message.HasField('attachment'):
@@ -389,6 +397,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'group': group,
                             'content': content,
                             'expires_at': expires_at,
+                            'reply_to_message_id': message.reply_to_message_id if message.reply_to_message_id else None,
                         }
                     )
                     # Handle attachment
@@ -415,6 +424,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'recipient': recipient,
                             'content': content,
                             'expires_at': expires_at,
+                            'reply_to_message_id': message.reply_to_message_id if message.reply_to_message_id else None,
                         }
                     )
                     # Handle attachment

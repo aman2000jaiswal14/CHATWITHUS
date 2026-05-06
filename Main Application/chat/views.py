@@ -585,6 +585,7 @@ def api_chat_history(request, chat_id):
                 'expires_at': int(msg.expires_at.timestamp() * 1000) if msg.expires_at else None,
                 'is_expired': expired,
                 'readReceipt': msg.read_receipt,
+                'replyToMessageId': msg.reply_to_message_id,
             }
             
             # Only attach attachment data if message is NOT expired
@@ -692,7 +693,8 @@ def api_export_messages(request, chat_id):
                 'isGroupMessage': is_group,
                 'type': msg.message_type,
                 'payload': msg.decrypted_content.encode('utf-8').hex(),
-                'sentAt': int(msg.timestamp.timestamp() * 1000)
+                'sentAt': int(msg.timestamp.timestamp() * 1000),
+                'replyToMessageId': msg.reply_to_message_id,
             }
             if include_attachments:
                 att = msg.attachments.first()

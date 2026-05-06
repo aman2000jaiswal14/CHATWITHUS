@@ -103,6 +103,7 @@ class WebSocketClient {
                     content: decryptedContent,
                     sentAt: Number(chatMsg.sentAt),
                     timerSeconds: chatMsg.timerSeconds || 0,
+                    replyToMessageId: chatMsg.replyToMessageId,
                     expires_at: chatMsg.timerSeconds > 0
                         ? Number(chatMsg.sentAt) + chatMsg.timerSeconds * 1000
                         : null,
@@ -226,7 +227,7 @@ class WebSocketClient {
         }
     }
 
-    async sendMessage(targetId, content, isGroup, type = 0, attachment = null, timerSeconds = 0) {
+    async sendMessage(targetId, content, isGroup, type = 0, attachment = null, timerSeconds = 0, replyToMessageId = null) {
         if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
             console.error('[WS] Cannot send — socket not open');
             return;
@@ -243,7 +244,8 @@ class WebSocketClient {
                 type: type,
                 payload: new TextEncoder().encode(encryptedContent),
                 sentAt: Date.now(),
-                timerSeconds: timerSeconds
+                timerSeconds: timerSeconds,
+                replyToMessageId: replyToMessageId
             };
 
             if (attachment) {

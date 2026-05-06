@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer, Check } from 'lucide-react';
+import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer, Check, Reply } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
 import { markRead, uploadAttachment } from '../../services/api';
@@ -308,6 +308,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const [pendingAttachment, setPendingAttachment] = useState(null);
     const [mentionQuery, setMentionQuery] = useState(null);
     const [selectedMentionIdx, setSelectedMentionIdx] = useState(0);
+    const [replyToMessage, setReplyToMessage] = useState(null);
     const fileInputRef = useRef(null);
 
     // Voice recording refs
@@ -568,9 +569,10 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
             };
         }
 
-        onSendMessage(inputText, attachment, timerSeconds);
+        onSendMessage(inputText, attachment, timerSeconds, replyToMessage?.messageId);
         setInputText('');
         setPendingAttachment(null);
+        setReplyToMessage(null);
         setTimerSeconds(0); // Reset to global policy after each send
         setUnreadStartIdx(null); // Clear "X New" banner on user interaction
         clearLastOpenedUnread(); // Prevent useEffect from re-setting it
@@ -954,7 +956,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                     </div>
                                 </div>
                             ) : (
-                                <div className={`flex flex-col max-w-[85%] ${isOwn ? 'self-end ml-auto' : 'self-start mr-auto'}`}>
+                                <div id={`msg-${msg.messageId}`} className={`flex flex-col max-w-[85%] ${isOwn ? 'self-end ml-auto' : 'self-start mr-auto'}`}>
                                     <div className="flex items-baseline gap-1.5 mb-0.5">
                                         <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : (isEmergency ? 'text-red-500' : 'text-emerald-500')}`}>{isOwn ? 'ME' : msg.senderId}</span>
                                         <span className="text-[9px] text-slate-600 font-mono">{formatTimeShort(msg.sentAt)}</span>
@@ -965,7 +967,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                             </span>
                                         )}
                                     </div>
-                                    <div className={`px-3 py-2 rounded-lg text-sm transition-all duration-300
+                                    <div className={`px-3 py-2 rounded-lg text-sm transition-all duration-300 relative group/msg
                                             ${isExpired
                                             ? 'bg-slate-800/30 border border-slate-700/50 text-slate-500'
                                             : isUnread
@@ -980,6 +982,22 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                                                 ? 'bg-emerald-900/20 border border-emerald-700 text-slate-100 shadow-sm'
                                                                 : 'bg-[#1e293b] border border-slate-700 text-slate-200 shadow-sm'
                                         }`}>
+                                        {/* Reply Context */}
+                                        {msg.replyToMessageId && !isExpired && (
+                                            <div className="mb-2 p-1.5 bg-black/20 border-l-2 border-emerald-500/50 rounded flex flex-col gap-0.5 opacity-80 hover:opacity-100 transition-opacity cursor-pointer overflow-hidden"
+                                                 onClick={() => {
+                                                     const el = document.getElementById(`msg-${msg.replyToMessageId}`);
+                                                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                 }}>
+                                                <span className="text-[9px] font-bold text-emerald-400/80 uppercase">
+                                                    {messages.find(m => m.messageId === msg.replyToMessageId)?.senderId || 'Unknown'}
+                                                </span>
+                                                <p className="text-[10px] text-slate-400 truncate italic">
+                                                    {messages.find(m => m.messageId === msg.replyToMessageId)?.content || '[Message not found]'}
+                                                </p>
+                                            </div>
+                                        )}
+
                                         {(msg.type === 0 || msg.type === 1) && msg.content && !isExpired && (
                                             <div className="break-words mb-1 overflow-x-hidden">
                                                 {(!license?.modules || license.modules.includes('MARKDOWN'))
@@ -999,6 +1017,17 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                                 <ShieldAlert className="w-4 h-4 animate-pulse" />
                                                 <span className="text-[10px] tracking-tighter">EMERGENCY BROADCAST</span>
                                             </div>
+                                        )}
+
+                                        {/* Reply Trigger */}
+                                        {!isExpired && !isEmergency && (window.CWU_VERIFIED_MODULES || []).includes('REPLY') && (
+                                            <button
+                                                onClick={() => setReplyToMessage(msg)}
+                                                className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-all p-1.5 hover:bg-slate-700/50 rounded-full text-slate-400 hover:text-emerald-400 ${isOwn ? '-left-8' : '-right-8'}`}
+                                                title="Reply"
+                                            >
+                                                <Reply size={14} />
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -1046,6 +1075,23 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                 <span className="text-[10px] text-slate-300 max-w-[120px] truncate">{pendingAttachment.name}</span>
                                 <button onClick={() => setPendingAttachment(null)} className="p-1 hover:text-red-400 transition-colors">
                                     <X size={12} />
+                                </button>
+                            </div>
+                        )}
+
+                        {replyToMessage && (
+                            <div className="absolute bottom-full left-3 right-3 mb-2 p-2 bg-slate-800/80 backdrop-blur-md border border-emerald-500/30 rounded-lg shadow-xl flex items-center gap-3 group animate-in slide-in-from-bottom-2 duration-200 z-40">
+                                <div className="w-1 h-8 bg-emerald-500 rounded-full" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                        <Reply size={10} /> Replying to {replyToMessage.senderId}
+                                    </p>
+                                    <p className="text-[11px] text-slate-300 truncate italic">
+                                        {replyToMessage.content || "[Attachment]"}
+                                    </p>
+                                </div>
+                                <button onClick={() => setReplyToMessage(null)} className="p-1.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors">
+                                    <X size={14} />
                                 </button>
                             </div>
                         )}

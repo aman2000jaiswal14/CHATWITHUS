@@ -79,6 +79,7 @@ class Message(models.Model):
     is_emergency_broadcast = models.BooleanField(default=False)
     read_receipt = models.IntegerField(default=0)  # 0: Sent, 1: Delivered, 2: Read
     group_receipts = models.JSONField(default=dict, blank=True)  # {"user_id": receipt_status}
+    reply_to_message_id = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
         ordering = ['timestamp']
