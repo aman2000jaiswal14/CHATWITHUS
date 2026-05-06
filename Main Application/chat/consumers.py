@@ -90,6 +90,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 if wrapper.HasField('chat_message'):
                     message = wrapper.chat_message
                     
+                    # Rate limiting: 15 messages per session (user-based)
+                    from .services.rate_limit import SessionRateLimiter
+                    if not SessionRateLimiter.is_allowed(f"ws_session_{self.user_id}", limit=15):
+                        print(f"[RATE LIMIT] User {self.user_id} exceeded session limit.")
+                        # Optionally send a system message back to notify the user
+                        return
+
                     # Prevent sender impersonation IDOR
                     if message.sender_id != self.user_id:
                         print(f"[AUTH WARN] Enforcing sender_id to {self.user_id} (attempted {message.sender_id})")

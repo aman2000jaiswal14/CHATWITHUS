@@ -51,6 +51,24 @@ Communication between the `WebSocketClient` and the UI.
 
 ---
 
-## 4. Key Security Constrains
-- **Maximum Payload Size**: 50MB (controlled by `settings.py` and Protobuf limits).
-- **Binary Format**: The client MUST send data as `ArrayBuffer` or `Uint8Array`. JSON is not supported on the main chat socket.
+---
+
+## 5. Security Enforcements
+All API requests and WebSocket connections are subject to the following safeguards:
+
+### Authentication
+Every request MUST include a valid JWT in the headers:
+`Authorization: Bearer <JWT_TOKEN>`
+
+### New Security Endpoints
+| Endpoint | Method | Description | Rate Limit |
+| :--- | :--- | :--- | :--- |
+| `/chat/api/auth/token/` | POST | Generates a JWT from a username + HMAC signature. | 20/hr |
+| `/chat/api/register/` | POST | Registers a new user. | 5/hr |
+
+### File Validation
+The `/chat/api/upload/` endpoint only accepts the following extensions:
+- `.jpg`, `.png`, `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.csv`, `.xml`, `.json`, `.zip`, `.txt`
+
+### WebSocket Throttling
+Outgoing messages are limited to **15 per session**. Exceeding this will result in immediate message rejection and log flagging.

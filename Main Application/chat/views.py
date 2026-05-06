@@ -924,6 +924,12 @@ def api_mark_read(request):
 @require_POST
 def api_generate_token(request):
     """Generate a JWT token for a given user. (Requires Identity Signature)"""
+    # Simple IP-based rate limiting for pre-auth endpoint
+    from .services.rate_limit import SessionRateLimiter
+    ip = request.META.get('REMOTE_ADDR')
+    if not SessionRateLimiter.is_allowed(f"ip_{ip}", limit=20):
+        return JsonResponse({'error': 'rate limit exceeded'}, status=429)
+
     try:
         data = json.loads(request.body)
         username = data.get('username')
@@ -1019,12 +1025,12 @@ def api_upload_attachment(request):
     
     uploaded_file = request.FILES['file']
     
-    # We don't link to a message yet because the message hasn't been created.
-    # The frontend will upload the file first, get the details, and then send the message with attachment metadata.
-    # However, our MessageAttachment model requires a message.
-    # Change of plan: We'll store the file temporarily or just update the model to allow null message initially?
-    # Better: Use a separate TemporaryAttachment model or just save the file and return a path.
-    # Let's keep it simple: Save the file, return details, and we'll create the MessageAttachment when saving the message.
+    # Validate file type/extension
+    from .services.file_service import validate_attachment
+    try:
+        validate_attachment(uploaded_file)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
     
     import os
     from django.core.files.storage import default_storage
@@ -1051,6 +1057,12 @@ def api_upload_attachment(request):
 @require_POST
 def api_register(request):
     """Register a new user with default credentials."""
+    # Simple IP-based rate limiting for registration
+    from .services.rate_limit import SessionRateLimiter
+    ip = request.META.get('REMOTE_ADDR')
+    if not SessionRateLimiter.is_allowed(f"reg_ip_{ip}", limit=5):
+        return JsonResponse({'error': 'registration rate limit exceeded'}, status=429)
+
     data = json.loads(request.body)
     username = data.get('username')
     name = data.get('name')

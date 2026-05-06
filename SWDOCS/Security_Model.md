@@ -54,10 +54,23 @@ Using binary Protobuf instead of JSON makes the data stream less "human-readable
 ## 5. Secure WebSockets
 - Connections are established over `wss://` (WebSocket Secure) in production to ensure transport-layer security (TLS).
 
-## 6. Known Gaps & Future Hardening
-As of March 2026, a formalized security audit identified several architectural gaps for future hardening:
-- **Identity Verification**: Transitioning from header-based `X-Chat-User` to signed JWTs.
-- **WebSocket Handshake**: Implementing tokens for WebSocket connection authorization.
-- **CSRF Enforcement**: Removal of `@csrf_exempt` across all non-GET API endpoints.
+## 6. Authentication & Identity (JWT)
+The platform uses **JSON Web Tokens (JWT)** to ensure that every request is authenticated and verified.
+- **Handshake**: Clients must exchange a valid identity or signature for a short-lived JWT.
+- **Verification**: The server validates the JWT signature on every HTTP request and WebSocket handshake.
+- **CSRF Protection**: Native CSRF checks are strictly enforced and only bypassed for requests carrying a verified JWT.
 
-Detailed records can be found in [Security_Audit_2026.md](./Security_Audit_2026.md).
+## 7. HMAC Identity Handshake
+For third-party embedding, a secure identity proxy is used:
+- **Signing**: The host application signs the username with the `SECRET_KEY` using HMAC-SHA256.
+- **Trust**: The chat backend trusts the sign-on only if the signature matches, preventing unauthorized impersonation.
+
+## 8. Anti-Abuse (Rate Limiting)
+Multi-layered throttling protects system resources:
+- **IP-Based**: Throttles registration and token endpoints to prevent brute-force attacks.
+- **Session-Based**: Limits users to **15 messages per session** on WebSockets to prevent automated spam.
+
+## 9. Future Hardening
+Planned upgrades for Phase 3:
+- **Dynamic E2EE**: Transition from shared secrets to ECDH (Elliptic Curve Diffie-Hellman) key exchange.
+- **Audit Logging**: Comprehensive structured logging of all security-sensitive events.

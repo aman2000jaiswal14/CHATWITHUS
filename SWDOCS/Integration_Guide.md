@@ -95,8 +95,17 @@ In Python web frameworks, you can inject the user's identity directly into the p
     <div id="chatroot"></div>
 
     <script type="module">
-        // Optional: Pass current user info to global scope if needed by widget
-        window.CHAT_USER = "{{ request.user.username }}";
+        // 1. Generate identity signature on your backend
+        // 2. Fetch JWT using the signature
+        const response = await fetch('/chat/api/auth/token/', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                username: "{{ request.user.username }}",
+                signature: "{{ hmac_signature_from_backend }}" 
+            })
+        });
+        const { token } = await response.json();
+        window.CHAT_TOKEN = token;
     </script>
     <script type="module" src="https://your-server/chat/static/chat/ChatWithUsWid.js"></script>
 </body>
