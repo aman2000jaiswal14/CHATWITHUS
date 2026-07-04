@@ -1,20 +1,32 @@
 {
     "Backend": {
-        "status": "ERROR",
-        "details": "[Errno 2] No such file or directory: '/home/aman/aman/Antigravity Projects/CHATWITHUS/CHATWITHUS/TEST_SETUP/venv/bin/python'",
+        "status": "PASSED",
+        "details": "re/wsgi.py                                                             4      4     0%\nmanage.py                                                               11     11     0%\n----------------------------------------------------------------------------------------\nTOTAL                                                                 1727   1375    20%\nCoverage HTML written to dir TEST_SETUP/reports/backend_coverage\n============================== 3 passed in 2.36s ===============================\n",
         "cases": [
             {
-                "name": "Execution",
-                "status": "ERROR",
-                "error": "[Errno 2] No such file or directory: '/home/aman/aman/Antigravity Projects/CHATWITHUS/CHATWITHUS/TEST_SETUP/venv/bin/python'",
-                "solution": "Check execution environment"
+                "name": "test_user_creation",
+                "status": "PASSED",
+                "error": "",
+                "solution": ""
+            },
+            {
+                "name": "test_login_view",
+                "status": "PASSED",
+                "error": "",
+                "solution": ""
+            },
+            {
+                "name": "test_jwt_expiration",
+                "status": "PASSED",
+                "error": "",
+                "solution": ""
             }
         ],
-        "timestamp": "2026-07-04 16:31:08"
+        "timestamp": "2026-07-04 17:58:25"
     },
     "Frontend": {
         "status": "PASSED",
-        "details": "\n> frontend@0.0.0 test\n> vitest --run --reporter=verbose\n\n\n RUN  v3.2.4 /home/aman/aman/testproject3/CHATWITHUS/frontend\n\n \u2713 src/simple.test.jsx > Simple Frontend Test > should pass 4ms\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  17:52:17\n   Duration  1.18s (transform 387ms, setup 0ms, collect 55ms, tests 7ms, environment 0ms, prepare 731ms)\n\n",
+        "details": "\n> frontend@0.0.0 test\n> vitest --run --reporter=verbose\n\n\n RUN  v3.2.6 /home/aman/aman/Antigravity Projects/CHATWITHUS/CHATWITHUS/frontend\n\n \u2713 src/simple.test.jsx > Simple Frontend Test > should pass 2ms\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  17:50:56\n   Duration  794ms (transform 39ms, setup 0ms, collect 25ms, tests 4ms, environment 0ms, prepare 156ms)\n\n",
         "cases": [
             {
                 "name": "src/simple.test.jsx > Simple Frontend Test > shoul",
@@ -23,7 +35,7 @@
                 "solution": ""
             }
         ],
-        "timestamp": "2026-03-07 17:52:18"
+        "timestamp": "2026-07-04 17:50:57"
     },
     "Security (Backend)": {
         "status": "FAILED",

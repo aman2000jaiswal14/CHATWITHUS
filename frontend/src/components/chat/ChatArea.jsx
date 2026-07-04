@@ -315,7 +315,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
 
-    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat, isSelfDestructEnabled, isEmergencyAlertActive, setIsEmergencyAlertActive, clearLastOpenedUnread } = useChatStore();
+    const { activeChatId, isGroupChat, bookmarks, groups, setCurrentView, setMessages, fetchedChats, presence, loadMoreMessages, messagesByChat, isSelfDestructEnabled, isEmergencyAlertActive, setIsEmergencyAlertActive, clearLastOpenedUnread, isWidgetOpen } = useChatStore();
     const messages = activeChatId ? (messagesByChat[activeChatId] || []) : [];
 
     const [timerSeconds, setTimerSeconds] = useState(0); // 0 = default global policy
@@ -524,7 +524,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
 
     // Consolidated effect for marking as read with debounce to prevent duplicate calls on load
     useEffect(() => {
-        if (!activeChatId) return;
+        if (!activeChatId || !isWidgetOpen) return;
         const isLicensed = (window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT');
         if (!isLicensed) return;
 
@@ -546,14 +546,18 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
             }
         }, 300);
 
-        const handleFocus = () => markRead(activeChatId, isGroupChat).catch(console.error);
+        const handleFocus = () => {
+            if (isWidgetOpen) {
+                markRead(activeChatId, isGroupChat).catch(console.error);
+            }
+        };
         window.addEventListener('focus', handleFocus);
 
         return () => {
             clearTimeout(timer);
             window.removeEventListener('focus', handleFocus);
         };
-    }, [activeChatId, isGroupChat, messages.length]);
+    }, [activeChatId, isGroupChat, messages.length, isWidgetOpen]);
 
     const handleSend = async () => {
         if (!inputText.trim() && !pendingAttachment) return;

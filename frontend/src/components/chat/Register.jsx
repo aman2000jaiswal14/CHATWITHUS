@@ -89,18 +89,18 @@ const Register = () => {
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                                Username
+                                Username (Synced with Host)
                             </label>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Shield className="h-4 w-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+                                    <Shield className="h-4 w-4 text-slate-500 transition-colors" />
                                 </div>
                                 <input
                                     type="text"
                                     required
+                                    readOnly
                                     value={formData.username}
-                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                    className="block w-full pl-10 pr-3 py-2.5 bg-slate-900/50 border border-slate-800 rounded-xl leading-5 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all sm:text-sm"
+                                    className="block w-full pl-10 pr-3 py-2.5 bg-slate-950/60 border border-slate-900 rounded-xl leading-5 text-slate-400 cursor-not-allowed focus:outline-none sm:text-sm"
                                     placeholder="Choose a username"
                                 />
                             </div>

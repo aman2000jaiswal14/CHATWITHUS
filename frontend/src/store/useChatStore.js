@@ -18,12 +18,23 @@ export const useChatStore = create((set, get) => ({
     isSelfDestructEnabled: false,
     isEmergencyAlertActive: false,
     currentUser: (window.CHAT_CONFIG || {}).USER_ID || 'anonymous',
+    isWidgetOpen: false,
 
     setIsRegistered: (val) => set({ isRegistered: val }),
     setIsMuted: (val) => set({ isMuted: val }),
     setIsSelfDestructEnabled: (val) => set({ isSelfDestructEnabled: val }),
     setIsEmergencyAlertActive: (val) => set({ isEmergencyAlertActive: val }),
     setCurrentUser: (val) => set({ currentUser: val }),
+    setIsWidgetOpen: (val) => set((state) => {
+        const newState = { isWidgetOpen: val };
+        if (val && state.activeChatId) {
+            newState.unreadCounts = {
+                ...state.unreadCounts,
+                [state.activeChatId]: 0
+            };
+        }
+        return newState;
+    }),
 
     setActiveChat: (chatId, isGroup) => set((state) => {
         const cid = String(chatId);
@@ -82,7 +93,7 @@ export const useChatStore = create((set, get) => ({
             );
         }
 
-        if (state.activeChatId !== cid) {
+        if (state.activeChatId !== cid || !state.isWidgetOpen) {
             newState.unreadCounts = {
                 ...state.unreadCounts,
                 [cid]: (state.unreadCounts[cid] || 0) + 1

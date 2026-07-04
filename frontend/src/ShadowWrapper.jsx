@@ -8,8 +8,7 @@ import { useChatStore } from './store/useChatStore';
 const ChatWidget = () => {
   const hostRef = useRef(null);
   const shadowRootRef = useRef(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const { unreadCounts } = useChatStore();
+  const { unreadCounts, isWidgetOpen, setIsWidgetOpen } = useChatStore();
 
   const totalUnread = Object.values(unreadCounts).reduce((acc, count) => acc + count, 0);
 
@@ -56,19 +55,19 @@ const ChatWidget = () => {
           position: 'fixed',
           bottom: '80px',
           right: '20px',
-          width: isOpen ? '400px' : '0px',
-          height: isOpen ? '560px' : '0px',
+          width: isWidgetOpen ? '400px' : '0px',
+          height: isWidgetOpen ? '560px' : '0px',
           borderRadius: '12px',
           overflow: 'hidden',
-          boxShadow: isOpen ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)' : 'none',
+          boxShadow: isWidgetOpen ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)' : 'none',
           transition: 'width 0.3s ease, height 0.3s ease, box-shadow 0.3s ease',
           zIndex: 9998,
-          border: isOpen ? '1px solid #1e293b' : 'none',
+          border: isWidgetOpen ? '1px solid #1e293b' : 'none',
         }}
       />
       {/* Floating Toggle Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsWidgetOpen(!isWidgetOpen)}
         style={{
           position: 'fixed',
           bottom: '20px',
@@ -90,7 +89,7 @@ const ChatWidget = () => {
         onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
         onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
       >
-        {isOpen ? <X size={24} /> : <MessageSquare size={24} />}
+        {isWidgetOpen ? <X size={24} /> : <MessageSquare size={24} />}
 
         {totalUnread > 0 && (
           <div
