@@ -19,8 +19,17 @@ export const useChatStore = create((set, get) => ({
     isEmergencyAlertActive: false,
     currentUser: (window.CHAT_CONFIG || {}).USER_ID || 'anonymous',
     isWidgetOpen: false,
+    incomingCall: null,        // { senderId, callId, isVideo, sdp }
+    outgoingCall: null,        // { targetId, callId, isVideo }
+    activeCall: null,          // { targetId, callId, isVideo }
+    callConnectionState: 'idle', // idle, connecting, connected, disconnected, failed
 
     setIsRegistered: (val) => set({ isRegistered: val }),
+    setIncomingCall: (incomingCall) => set({ incomingCall }),
+    setOutgoingCall: (outgoingCall) => set({ outgoingCall }),
+    setActiveCall: (activeCall) => set({ activeCall }),
+    setCallConnectionState: (callConnectionState) => set({ callConnectionState }),
+    resetCallState: () => set({ incomingCall: null, outgoingCall: null, activeCall: null, callConnectionState: 'idle' }),
     setIsMuted: (val) => set({ isMuted: val }),
     setIsSelfDestructEnabled: (val) => set({ isSelfDestructEnabled: val }),
     setIsEmergencyAlertActive: (val) => set({ isEmergencyAlertActive: val }),

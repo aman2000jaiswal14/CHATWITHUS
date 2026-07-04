@@ -4,7 +4,7 @@ This document explains the modular licensing system used in ChatWithUs. Each adv
 
 ## 0. License Gating
 To enable a module, the `MODULES` field must contain the corresponding identifier string.
-Example: `MODULES: SELFDESTRUCT, EMERGENCY_BROADCAST, READ_RECEIPT, VOICE, E2E, MARKDOWN, NOTIFICATIONS, LAZYLOADING`
+Example: `MODULES: SELFDESTRUCT, EMERGENCY_BROADCAST, READ_RECEIPT, VOICE, E2E, MARKDOWN, NOTIFICATIONS, LAZYLOADING, REPLY, VIDEOCALL`
 
 ## 1. Modules Detailed
 
@@ -47,3 +47,12 @@ Example: `MODULES: SELFDESTRUCT, EMERGENCY_BROADCAST, READ_RECEIPT, VOICE, E2E, 
 - **Function**: Paginated message loading and infinite scroll.
 - **Performance**: Reduces initial load time and memory footprint for large chat histories.
 - **Control**: Gated by the `LAZYLOADING` identifier.
+
+### **REPLY: Message Threading & Replies**
+- **Function**: Visual threading and snapping references to historical chat replies.
+- **Control**: Gated by the `REPLY` identifier.
+
+### **VIDEOCALL: 1-on-1 Audio/Video Calling**
+- **Function**: Peer-to-peer real-time audio and video streams using WebRTC and WebSocket signaling.
+- **Control**: Gated by the `VIDEOCALL` identifier. Hides phone/camera call buttons if unlicensed; backend drops signaling packets.
+

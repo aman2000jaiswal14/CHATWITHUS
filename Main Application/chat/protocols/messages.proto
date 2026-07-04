@@ -67,11 +67,31 @@ message Command {
     string target_id = 2;
 }
 
+message WebRTCSignal {
+    enum SignalType {
+        OFFER = 0;
+        ANSWER = 1;
+        ICE_CANDIDATE = 2;
+        CALL_INITIATE = 3; // Calling / Ringing
+        CALL_REJECT = 4;   // Declined
+        CALL_HANGUP = 5;   // Ended
+    }
+    SignalType type = 1;
+    string sender_id = 2;
+    string target_id = 3; // Recipient user
+    string sdp = 4;       // JSON string or raw SDP for offer/answer
+    string candidate = 5; // JSON string or raw candidate details for ICE
+    string call_id = 6;   // Unique session ID for the call
+    bool is_video = 7;    // True for video call, false for audio-only
+}
+
 message ProtocolWrapper {
     oneof content {
         ChatMessage chat_message = 1;
         Presence presence = 2;
         Command command = 3;
         Receipt receipt = 4;
+        WebRTCSignal webrtc_signal = 5;
     }
 }
+

@@ -191,6 +191,9 @@ class WebSocketClient {
                 // For DMs, the store key is the other user (readerId). For groups, it's the groupId (chatId).
                 const targetChatId = receipt.isGroup ? receipt.chatId : receipt.readerId;
                 useChatStore.getState().updateMessageStatus(targetChatId, receipt.messageId, status);
+            } else if (wrapper.content === 'webrtcSignal') {
+                const sig = wrapper.webrtcSignal;
+                this.handleWebRTCSignal(sig);
             }
         } catch (err) {
             console.error('[WS] Failed to decode message', err);
@@ -382,6 +385,95 @@ class WebSocketClient {
                 }
             }
         }, 500);
+    }
+
+    sendWebRTCSignal(sig) {
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+        try {
+            const typeMap = {
+                'OFFER': 0,
+                'ANSWER': 1,
+                'ICE_CANDIDATE': 2,
+                'CALL_INITIATE': 3,
+                'CALL_REJECT': 4,
+                'CALL_HANGUP': 5
+            };
+
+            const webrtcSignal = wca_chat.WebRTCSignal.create({
+                type: typeof sig.type === 'string' ? typeMap[sig.type] : sig.type,
+                senderId: sig.senderId,
+                targetId: sig.targetId,
+                sdp: sig.sdp || '',
+                candidate: sig.candidate || '',
+                callId: sig.callId,
+                isVideo: sig.isVideo || false
+            });
+
+            const wrapper = wca_chat.ProtocolWrapper.create({
+                webrtcSignal: webrtcSignal
+            });
+
+            this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+        } catch (err) {
+            console.error('[WS] Failed to send WebRTC signal:', err);
+        }
+    }
+
+    async handleWebRTCSignal(sig) {
+        console.log('[WS] Received WebRTC Signal:', sig.type, 'from:', sig.senderId);
+        
+        const { default: webrtcService } = await import('./WebRTCService');
+        const state = useChatStore.getState();
+
+        switch (sig.type) {
+            case 3: // CALL_INITIATE
+                if (state.activeCall || state.incomingCall || state.outgoingCall) {
+                    webrtcService.rejectCall(sig.senderId, sig.callId);
+                    return;
+                }
+                useChatStore.getState().setIncomingCall({
+                    senderId: sig.senderId,
+                    callId: sig.callId,
+                    isVideo: sig.isVideo
+                });
+                break;
+            case 0: // OFFER
+                if (state.incomingCall && state.incomingCall.callId === sig.callId) {
+                    useChatStore.getState().setIncomingCall({
+                        ...state.incomingCall,
+                        sdp: sig.sdp
+                    });
+                }
+                break;
+            case 1: // ANSWER
+                if (state.outgoingCall && state.outgoingCall.callId === sig.callId) {
+                    await webrtcService.handleIncomingAnswer(sig);
+                }
+                break;
+            case 2: // ICE_CANDIDATE
+                await webrtcService.handleIncomingIceCandidate(sig);
+                break;
+            case 4: // CALL_REJECT
+                if (
+                    (state.incomingCall && state.incomingCall.callId === sig.callId) ||
+                    (state.outgoingCall && state.outgoingCall.callId === sig.callId) ||
+                    (state.activeCall && state.activeCall.callId === sig.callId)
+                ) {
+                    webrtcService.handleCallEndLocally();
+                }
+                break;
+            case 5: // CALL_HANGUP
+                if (
+                    (state.incomingCall && state.incomingCall.callId === sig.callId) ||
+                    (state.outgoingCall && state.outgoingCall.callId === sig.callId) ||
+                    (state.activeCall && state.activeCall.callId === sig.callId)
+                ) {
+                    webrtcService.handleCallEndLocally();
+                }
+                break;
+            default:
+                break;
+        }
     }
 }
 

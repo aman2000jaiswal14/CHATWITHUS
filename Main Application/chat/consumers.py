@@ -232,6 +232,30 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             {'type': 'chat.message', 'data': encoded}
                         )
 
+                elif wrapper.HasField('webrtc_signal'):
+                    # Check license for VIDEOCALL feature
+                    modules = self.license_info.get('MODULES', '') if self.license_info else ''
+                    if 'VIDEOCALL' not in modules:
+                        print(f"[LICENSE ERROR] User {self.user_id} attempted WebRTC signaling without VIDEOCALL license")
+                        return
+
+                    webrtc_signal = wrapper.webrtc_signal
+                    
+                    # Prevent sender impersonation IDOR
+                    if webrtc_signal.sender_id != self.user_id:
+                        print(f"[AUTH WARN] Enforcing webrtc_signal.sender_id to {self.user_id} (attempted {webrtc_signal.sender_id})")
+                        webrtc_signal.sender_id = self.user_id
+
+                    # Route the signal to the target user's personal channel group
+                    target_group = f'user_{webrtc_signal.target_id}'
+                    webrtc_bytes = wrapper.SerializeToString()
+                    encoded = base64.b64encode(webrtc_bytes).decode('ascii')
+                    
+                    await self.channel_layer.group_send(
+                        target_group,
+                        {'type': 'chat.message', 'data': encoded}
+                    )
+
             except Exception as e:
                 print(f"[PROTOBUF ERROR] {e}")
                 import traceback

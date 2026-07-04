@@ -155,4 +155,11 @@ def license_context():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', debug=True)
+    
+    ssl_cert = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Main Application/localhost.crt"))
+    ssl_key = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Main Application/localhost.key"))
+    
+    if os.path.exists(ssl_cert) and os.path.exists(ssl_key):
+        app.run(host='0.0.0.0', port=5000, debug=True, ssl_context=(ssl_cert, ssl_key))
+    else:
+        app.run(host='0.0.0.0', port=5000, debug=True)

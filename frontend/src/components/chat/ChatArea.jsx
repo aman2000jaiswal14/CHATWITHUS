@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer, Check, Reply } from 'lucide-react';
+import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer, Check, Reply, Phone, Video as VideoIcon } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
 import { markRead, uploadAttachment } from '../../services/api';
 import encryptionService from '../../services/EncryptionService';
 import WebSocketClient from '../../services/WebSocketClient';
+import webrtcService from '../../services/WebRTCService';
 
 const StatusTicks = ({ status }) => {
     if (!(window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT')) return null;
@@ -878,6 +879,25 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                     )}
                 </div>
                 <div className="flex gap-1 items-center">
+                    {!isEmergency && !isGroupChat && (window.CWU_VERIFIED_MODULES || []).includes('VIDEOCALL') && (
+                        <>
+                            <button
+                                onClick={() => webrtcService.initiateCall(activeChatId, false)}
+                                className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors"
+                                title="Audio Call"
+                            >
+                                <Phone className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => webrtcService.initiateCall(activeChatId, true)}
+                                className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors"
+                                title="Video Call"
+                            >
+                                <VideoIcon className="w-4 h-4" />
+                            </button>
+                        </>
+                    )}
+
                     {!isEmergency && isGroupChat && (
                         <button
                             onClick={() => setCurrentView('group_members')}

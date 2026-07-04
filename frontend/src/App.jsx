@@ -6,6 +6,7 @@ import CreateGroup from './components/chat/CreateGroup';
 import GroupMembers from './components/chat/GroupMembers';
 import GroupSettings from './components/chat/GroupSettings';
 import Register from './components/chat/Register';
+import VideoCallModal from './components/chat/VideoCallModal';
 import { encryptionService } from './services/EncryptionService';
 import { useChatStore } from './store/useChatStore';
 import WebSocketClient from './services/WebSocketClient';
@@ -234,6 +235,7 @@ function App() {
       {currentView === 'group_settings' && (
         <GroupSettings onBack={() => setCurrentView('chat')} />
       )}
+      <VideoCallModal />
     </div>
   );
 }

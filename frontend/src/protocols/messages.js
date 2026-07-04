@@ -47,7 +47,7 @@ export const wca_chat = $root.wca_chat = (() => {
         function ChatMessage(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -168,9 +168,13 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ChatMessage.encode = function encode(message, writer) {
+        ChatMessage.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.messageId != null && Object.hasOwnProperty.call(message, "messageId"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.messageId);
             if (message.senderId != null && Object.hasOwnProperty.call(message, "senderId"))
@@ -190,7 +194,7 @@ export const wca_chat = $root.wca_chat = (() => {
             if (message.isGroupMessage != null && Object.hasOwnProperty.call(message, "isGroupMessage"))
                 writer.uint32(/* id 9, wireType 0 =*/72).bool(message.isGroupMessage);
             if (message.attachment != null && Object.hasOwnProperty.call(message, "attachment"))
-                $root.wca_chat.ChatMessage.Attachment.encode(message.attachment, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
+                $root.wca_chat.ChatMessage.Attachment.encode(message.attachment, writer.uint32(/* id 10, wireType 2 =*/82).fork(), q + 1).ldelim();
             if (message.timerSeconds != null && Object.hasOwnProperty.call(message, "timerSeconds"))
                 writer.uint32(/* id 11, wireType 0 =*/88).int32(message.timerSeconds);
             if (message.replyToMessageId != null && Object.hasOwnProperty.call(message, "replyToMessageId"))
@@ -208,7 +212,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ChatMessage.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -222,12 +226,18 @@ export const wca_chat = $root.wca_chat = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ChatMessage.decode = function decode(reader, length) {
+        ChatMessage.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.ChatMessage();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.messageId = reader.string();
@@ -274,11 +284,11 @@ export const wca_chat = $root.wca_chat = (() => {
                         break;
                     }
                 case 10: {
-                        message.attachment = $root.wca_chat.ChatMessage.Attachment.decode(reader, reader.uint32());
+                        message.attachment = $root.wca_chat.ChatMessage.Attachment.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -309,19 +319,23 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ChatMessage.verify = function verify(message) {
+        ChatMessage.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.messageId != null && message.hasOwnProperty("messageId"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.messageId != null && Object.hasOwnProperty.call(message, "messageId"))
                 if (!$util.isString(message.messageId))
                     return "messageId: string expected";
-            if (message.senderId != null && message.hasOwnProperty("senderId"))
+            if (message.senderId != null && Object.hasOwnProperty.call(message, "senderId"))
                 if (!$util.isString(message.senderId))
                     return "senderId: string expected";
-            if (message.targetId != null && message.hasOwnProperty("targetId"))
+            if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
                 if (!$util.isString(message.targetId))
                     return "targetId: string expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -332,29 +346,29 @@ export const wca_chat = $root.wca_chat = (() => {
                 case 4:
                     break;
                 }
-            if (message.payload != null && message.hasOwnProperty("payload"))
+            if (message.payload != null && Object.hasOwnProperty.call(message, "payload"))
                 if (!(message.payload && typeof message.payload.length === "number" || $util.isString(message.payload)))
                     return "payload: buffer expected";
-            if (message.sentAt != null && message.hasOwnProperty("sentAt"))
+            if (message.sentAt != null && Object.hasOwnProperty.call(message, "sentAt"))
                 if (!$util.isInteger(message.sentAt) && !(message.sentAt && $util.isInteger(message.sentAt.low) && $util.isInteger(message.sentAt.high)))
                     return "sentAt: integer|Long expected";
-            if (message.receivedAt != null && message.hasOwnProperty("receivedAt"))
+            if (message.receivedAt != null && Object.hasOwnProperty.call(message, "receivedAt"))
                 if (!$util.isInteger(message.receivedAt) && !(message.receivedAt && $util.isInteger(message.receivedAt.low) && $util.isInteger(message.receivedAt.high)))
                     return "receivedAt: integer|Long expected";
-            if (message.isHighPriority != null && message.hasOwnProperty("isHighPriority"))
+            if (message.isHighPriority != null && Object.hasOwnProperty.call(message, "isHighPriority"))
                 if (typeof message.isHighPriority !== "boolean")
                     return "isHighPriority: boolean expected";
-            if (message.isGroupMessage != null && message.hasOwnProperty("isGroupMessage"))
+            if (message.isGroupMessage != null && Object.hasOwnProperty.call(message, "isGroupMessage"))
                 if (typeof message.isGroupMessage !== "boolean")
                     return "isGroupMessage: boolean expected";
-            if (message.timerSeconds != null && message.hasOwnProperty("timerSeconds"))
+            if (message.timerSeconds != null && Object.hasOwnProperty.call(message, "timerSeconds"))
                 if (!$util.isInteger(message.timerSeconds))
                     return "timerSeconds: integer expected";
-            if (message.replyToMessageId != null && message.hasOwnProperty("replyToMessageId"))
+            if (message.replyToMessageId != null && Object.hasOwnProperty.call(message, "replyToMessageId"))
                 if (!$util.isString(message.replyToMessageId))
                     return "replyToMessageId: string expected";
-            if (message.attachment != null && message.hasOwnProperty("attachment")) {
-                let error = $root.wca_chat.ChatMessage.Attachment.verify(message.attachment);
+            if (message.attachment != null && Object.hasOwnProperty.call(message, "attachment")) {
+                let error = $root.wca_chat.ChatMessage.Attachment.verify(message.attachment, long + 1);
                 if (error)
                     return "attachment." + error;
             }
@@ -369,9 +383,15 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {wca_chat.ChatMessage} ChatMessage
          */
-        ChatMessage.fromObject = function fromObject(object) {
+        ChatMessage.fromObject = function fromObject(object, long) {
             if (object instanceof $root.wca_chat.ChatMessage)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".wca_chat.ChatMessage: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.wca_chat.ChatMessage();
             if (object.messageId != null)
                 message.messageId = String(object.messageId);
@@ -414,7 +434,7 @@ export const wca_chat = $root.wca_chat = (() => {
                     message.payload = object.payload;
             if (object.sentAt != null)
                 if ($util.Long)
-                    (message.sentAt = $util.Long.fromValue(object.sentAt)).unsigned = false;
+                    message.sentAt = $util.Long.fromValue(object.sentAt, false);
                 else if (typeof object.sentAt === "string")
                     message.sentAt = parseInt(object.sentAt, 10);
                 else if (typeof object.sentAt === "number")
@@ -423,7 +443,7 @@ export const wca_chat = $root.wca_chat = (() => {
                     message.sentAt = new $util.LongBits(object.sentAt.low >>> 0, object.sentAt.high >>> 0).toNumber();
             if (object.receivedAt != null)
                 if ($util.Long)
-                    (message.receivedAt = $util.Long.fromValue(object.receivedAt)).unsigned = false;
+                    message.receivedAt = $util.Long.fromValue(object.receivedAt, false);
                 else if (typeof object.receivedAt === "string")
                     message.receivedAt = parseInt(object.receivedAt, 10);
                 else if (typeof object.receivedAt === "number")
@@ -439,9 +459,9 @@ export const wca_chat = $root.wca_chat = (() => {
             if (object.replyToMessageId != null)
                 message.replyToMessageId = String(object.replyToMessageId);
             if (object.attachment != null) {
-                if (typeof object.attachment !== "object")
+                if (!$util.isObject(object.attachment))
                     throw TypeError(".wca_chat.ChatMessage.attachment: object expected");
-                message.attachment = $root.wca_chat.ChatMessage.Attachment.fromObject(object.attachment);
+                message.attachment = $root.wca_chat.ChatMessage.Attachment.fromObject(object.attachment, long + 1);
             }
             return message;
         };
@@ -455,9 +475,13 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ChatMessage.toObject = function toObject(message, options) {
+        ChatMessage.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.messageId = "";
@@ -473,49 +497,53 @@ export const wca_chat = $root.wca_chat = (() => {
                 }
                 if ($util.Long) {
                     let long = new $util.Long(0, 0, false);
-                    object.sentAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.sentAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : typeof BigInt !== "undefined" && options.longs === BigInt ? long.toBigInt() : long;
                 } else
-                    object.sentAt = options.longs === String ? "0" : 0;
+                    object.sentAt = options.longs === String ? "0" : typeof BigInt !== "undefined" && options.longs === BigInt ? BigInt("0") : 0;
                 if ($util.Long) {
                     let long = new $util.Long(0, 0, false);
-                    object.receivedAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.receivedAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : typeof BigInt !== "undefined" && options.longs === BigInt ? long.toBigInt() : long;
                 } else
-                    object.receivedAt = options.longs === String ? "0" : 0;
+                    object.receivedAt = options.longs === String ? "0" : typeof BigInt !== "undefined" && options.longs === BigInt ? BigInt("0") : 0;
                 object.isHighPriority = false;
                 object.isGroupMessage = false;
                 object.attachment = null;
                 object.timerSeconds = 0;
                 object.replyToMessageId = "";
             }
-            if (message.messageId != null && message.hasOwnProperty("messageId"))
+            if (message.messageId != null && Object.hasOwnProperty.call(message, "messageId"))
                 object.messageId = message.messageId;
-            if (message.senderId != null && message.hasOwnProperty("senderId"))
+            if (message.senderId != null && Object.hasOwnProperty.call(message, "senderId"))
                 object.senderId = message.senderId;
-            if (message.targetId != null && message.hasOwnProperty("targetId"))
+            if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
                 object.targetId = message.targetId;
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.wca_chat.ChatMessage.MessageType[message.type] === undefined ? message.type : $root.wca_chat.ChatMessage.MessageType[message.type] : message.type;
-            if (message.payload != null && message.hasOwnProperty("payload"))
+            if (message.payload != null && Object.hasOwnProperty.call(message, "payload"))
                 object.payload = options.bytes === String ? $util.base64.encode(message.payload, 0, message.payload.length) : options.bytes === Array ? Array.prototype.slice.call(message.payload) : message.payload;
-            if (message.sentAt != null && message.hasOwnProperty("sentAt"))
-                if (typeof message.sentAt === "number")
+            if (message.sentAt != null && Object.hasOwnProperty.call(message, "sentAt"))
+                if (typeof BigInt !== "undefined" && options.longs === BigInt)
+                    object.sentAt = typeof message.sentAt === "number" ? BigInt(message.sentAt) : $util.Long.fromBits(message.sentAt.low >>> 0, message.sentAt.high >>> 0, false).toBigInt();
+                else if (typeof message.sentAt === "number")
                     object.sentAt = options.longs === String ? String(message.sentAt) : message.sentAt;
                 else
                     object.sentAt = options.longs === String ? $util.Long.prototype.toString.call(message.sentAt) : options.longs === Number ? new $util.LongBits(message.sentAt.low >>> 0, message.sentAt.high >>> 0).toNumber() : message.sentAt;
-            if (message.receivedAt != null && message.hasOwnProperty("receivedAt"))
-                if (typeof message.receivedAt === "number")
+            if (message.receivedAt != null && Object.hasOwnProperty.call(message, "receivedAt"))
+                if (typeof BigInt !== "undefined" && options.longs === BigInt)
+                    object.receivedAt = typeof message.receivedAt === "number" ? BigInt(message.receivedAt) : $util.Long.fromBits(message.receivedAt.low >>> 0, message.receivedAt.high >>> 0, false).toBigInt();
+                else if (typeof message.receivedAt === "number")
                     object.receivedAt = options.longs === String ? String(message.receivedAt) : message.receivedAt;
                 else
                     object.receivedAt = options.longs === String ? $util.Long.prototype.toString.call(message.receivedAt) : options.longs === Number ? new $util.LongBits(message.receivedAt.low >>> 0, message.receivedAt.high >>> 0).toNumber() : message.receivedAt;
-            if (message.isHighPriority != null && message.hasOwnProperty("isHighPriority"))
+            if (message.isHighPriority != null && Object.hasOwnProperty.call(message, "isHighPriority"))
                 object.isHighPriority = message.isHighPriority;
-            if (message.isGroupMessage != null && message.hasOwnProperty("isGroupMessage"))
+            if (message.isGroupMessage != null && Object.hasOwnProperty.call(message, "isGroupMessage"))
                 object.isGroupMessage = message.isGroupMessage;
-            if (message.attachment != null && message.hasOwnProperty("attachment"))
-                object.attachment = $root.wca_chat.ChatMessage.Attachment.toObject(message.attachment, options);
-            if (message.timerSeconds != null && message.hasOwnProperty("timerSeconds"))
+            if (message.attachment != null && Object.hasOwnProperty.call(message, "attachment"))
+                object.attachment = $root.wca_chat.ChatMessage.Attachment.toObject(message.attachment, options, q + 1);
+            if (message.timerSeconds != null && Object.hasOwnProperty.call(message, "timerSeconds"))
                 object.timerSeconds = message.timerSeconds;
-            if (message.replyToMessageId != null && message.hasOwnProperty("replyToMessageId"))
+            if (message.replyToMessageId != null && Object.hasOwnProperty.call(message, "replyToMessageId"))
                 object.replyToMessageId = message.replyToMessageId;
             return object;
         };
@@ -590,7 +618,7 @@ export const wca_chat = $root.wca_chat = (() => {
             function Attachment(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -655,9 +683,13 @@ export const wca_chat = $root.wca_chat = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Attachment.encode = function encode(message, writer) {
+            Attachment.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.id != null && Object.hasOwnProperty.call(message, "id"))
                     writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
                 if (message.name != null && Object.hasOwnProperty.call(message, "name"))
@@ -681,7 +713,7 @@ export const wca_chat = $root.wca_chat = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Attachment.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -695,12 +727,18 @@ export const wca_chat = $root.wca_chat = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Attachment.decode = function decode(reader, length) {
+            Attachment.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.ChatMessage.Attachment();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.id = reader.string();
@@ -723,7 +761,7 @@ export const wca_chat = $root.wca_chat = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
                 }
@@ -754,22 +792,26 @@ export const wca_chat = $root.wca_chat = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Attachment.verify = function verify(message) {
+            Attachment.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.id != null && message.hasOwnProperty("id"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.id != null && Object.hasOwnProperty.call(message, "id"))
                     if (!$util.isString(message.id))
                         return "id: string expected";
-                if (message.name != null && message.hasOwnProperty("name"))
+                if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                     if (!$util.isString(message.name))
                         return "name: string expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     if (!$util.isString(message.type))
                         return "type: string expected";
-                if (message.url != null && message.hasOwnProperty("url"))
+                if (message.url != null && Object.hasOwnProperty.call(message, "url"))
                     if (!$util.isString(message.url))
                         return "url: string expected";
-                if (message.size != null && message.hasOwnProperty("size"))
+                if (message.size != null && Object.hasOwnProperty.call(message, "size"))
                     if (!$util.isInteger(message.size))
                         return "size: integer expected";
                 return null;
@@ -783,9 +825,15 @@ export const wca_chat = $root.wca_chat = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {wca_chat.ChatMessage.Attachment} Attachment
              */
-            Attachment.fromObject = function fromObject(object) {
+            Attachment.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.wca_chat.ChatMessage.Attachment)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".wca_chat.ChatMessage.Attachment: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.wca_chat.ChatMessage.Attachment();
                 if (object.id != null)
                     message.id = String(object.id);
@@ -809,9 +857,13 @@ export const wca_chat = $root.wca_chat = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Attachment.toObject = function toObject(message, options) {
+            Attachment.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.id = "";
@@ -820,15 +872,15 @@ export const wca_chat = $root.wca_chat = (() => {
                     object.url = "";
                     object.size = 0;
                 }
-                if (message.id != null && message.hasOwnProperty("id"))
+                if (message.id != null && Object.hasOwnProperty.call(message, "id"))
                     object.id = message.id;
-                if (message.name != null && message.hasOwnProperty("name"))
+                if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                     object.name = message.name;
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = message.type;
-                if (message.url != null && message.hasOwnProperty("url"))
+                if (message.url != null && Object.hasOwnProperty.call(message, "url"))
                     object.url = message.url;
-                if (message.size != null && message.hasOwnProperty("size"))
+                if (message.size != null && Object.hasOwnProperty.call(message, "size"))
                     object.size = message.size;
                 return object;
             };
@@ -886,7 +938,7 @@ export const wca_chat = $root.wca_chat = (() => {
         function Presence(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -927,9 +979,13 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Presence.encode = function encode(message, writer) {
+        Presence.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.userId != null && Object.hasOwnProperty.call(message, "userId"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.userId);
             if (message.status != null && Object.hasOwnProperty.call(message, "status"))
@@ -947,7 +1003,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Presence.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -961,12 +1017,18 @@ export const wca_chat = $root.wca_chat = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Presence.decode = function decode(reader, length) {
+        Presence.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.Presence();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.userId = reader.string();
@@ -977,7 +1039,7 @@ export const wca_chat = $root.wca_chat = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -1008,13 +1070,17 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Presence.verify = function verify(message) {
+        Presence.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.userId != null && message.hasOwnProperty("userId"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.userId != null && Object.hasOwnProperty.call(message, "userId"))
                 if (!$util.isString(message.userId))
                     return "userId: string expected";
-            if (message.status != null && message.hasOwnProperty("status"))
+            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
                 switch (message.status) {
                 default:
                     return "status: enum value expected";
@@ -1035,9 +1101,15 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {wca_chat.Presence} Presence
          */
-        Presence.fromObject = function fromObject(object) {
+        Presence.fromObject = function fromObject(object, long) {
             if (object instanceof $root.wca_chat.Presence)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".wca_chat.Presence: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.wca_chat.Presence();
             if (object.userId != null)
                 message.userId = String(object.userId);
@@ -1077,17 +1149,21 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Presence.toObject = function toObject(message, options) {
+        Presence.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.userId = "";
                 object.status = options.enums === String ? "ONLINE" : 0;
             }
-            if (message.userId != null && message.hasOwnProperty("userId"))
+            if (message.userId != null && Object.hasOwnProperty.call(message, "userId"))
                 object.userId = message.userId;
-            if (message.status != null && message.hasOwnProperty("status"))
+            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
                 object.status = options.enums === String ? $root.wca_chat.Presence.Status[message.status] === undefined ? message.status : $root.wca_chat.Presence.Status[message.status] : message.status;
             return object;
         };
@@ -1163,7 +1239,7 @@ export const wca_chat = $root.wca_chat = (() => {
         function Receipt(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1228,9 +1304,13 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Receipt.encode = function encode(message, writer) {
+        Receipt.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.messageId != null && Object.hasOwnProperty.call(message, "messageId"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.messageId);
             if (message.chatId != null && Object.hasOwnProperty.call(message, "chatId"))
@@ -1254,7 +1334,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Receipt.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1268,12 +1348,18 @@ export const wca_chat = $root.wca_chat = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Receipt.decode = function decode(reader, length) {
+        Receipt.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.Receipt();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.messageId = reader.string();
@@ -1296,7 +1382,7 @@ export const wca_chat = $root.wca_chat = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -1327,19 +1413,23 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Receipt.verify = function verify(message) {
+        Receipt.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.messageId != null && message.hasOwnProperty("messageId"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.messageId != null && Object.hasOwnProperty.call(message, "messageId"))
                 if (!$util.isString(message.messageId))
                     return "messageId: string expected";
-            if (message.chatId != null && message.hasOwnProperty("chatId"))
+            if (message.chatId != null && Object.hasOwnProperty.call(message, "chatId"))
                 if (!$util.isString(message.chatId))
                     return "chatId: string expected";
-            if (message.readerId != null && message.hasOwnProperty("readerId"))
+            if (message.readerId != null && Object.hasOwnProperty.call(message, "readerId"))
                 if (!$util.isString(message.readerId))
                     return "readerId: string expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -1347,7 +1437,7 @@ export const wca_chat = $root.wca_chat = (() => {
                 case 1:
                     break;
                 }
-            if (message.isGroup != null && message.hasOwnProperty("isGroup"))
+            if (message.isGroup != null && Object.hasOwnProperty.call(message, "isGroup"))
                 if (typeof message.isGroup !== "boolean")
                     return "isGroup: boolean expected";
             return null;
@@ -1361,9 +1451,15 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {wca_chat.Receipt} Receipt
          */
-        Receipt.fromObject = function fromObject(object) {
+        Receipt.fromObject = function fromObject(object, long) {
             if (object instanceof $root.wca_chat.Receipt)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".wca_chat.Receipt: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.wca_chat.Receipt();
             if (object.messageId != null)
                 message.messageId = String(object.messageId);
@@ -1401,9 +1497,13 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Receipt.toObject = function toObject(message, options) {
+        Receipt.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.messageId = "";
@@ -1412,15 +1512,15 @@ export const wca_chat = $root.wca_chat = (() => {
                 object.type = options.enums === String ? "DELIVERED" : 0;
                 object.isGroup = false;
             }
-            if (message.messageId != null && message.hasOwnProperty("messageId"))
+            if (message.messageId != null && Object.hasOwnProperty.call(message, "messageId"))
                 object.messageId = message.messageId;
-            if (message.chatId != null && message.hasOwnProperty("chatId"))
+            if (message.chatId != null && Object.hasOwnProperty.call(message, "chatId"))
                 object.chatId = message.chatId;
-            if (message.readerId != null && message.hasOwnProperty("readerId"))
+            if (message.readerId != null && Object.hasOwnProperty.call(message, "readerId"))
                 object.readerId = message.readerId;
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.wca_chat.Receipt.ReceiptType[message.type] === undefined ? message.type : $root.wca_chat.Receipt.ReceiptType[message.type] : message.type;
-            if (message.isGroup != null && message.hasOwnProperty("isGroup"))
+            if (message.isGroup != null && Object.hasOwnProperty.call(message, "isGroup"))
                 object.isGroup = message.isGroup;
             return object;
         };
@@ -1489,7 +1589,7 @@ export const wca_chat = $root.wca_chat = (() => {
         function Command(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1530,9 +1630,13 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Command.encode = function encode(message, writer) {
+        Command.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
@@ -1550,7 +1654,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Command.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1564,12 +1668,18 @@ export const wca_chat = $root.wca_chat = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Command.decode = function decode(reader, length) {
+        Command.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.Command();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -1580,7 +1690,7 @@ export const wca_chat = $root.wca_chat = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -1611,10 +1721,14 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Command.verify = function verify(message) {
+        Command.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -1622,7 +1736,7 @@ export const wca_chat = $root.wca_chat = (() => {
                 case 1:
                     break;
                 }
-            if (message.targetId != null && message.hasOwnProperty("targetId"))
+            if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
                 if (!$util.isString(message.targetId))
                     return "targetId: string expected";
             return null;
@@ -1636,9 +1750,15 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {wca_chat.Command} Command
          */
-        Command.fromObject = function fromObject(object) {
+        Command.fromObject = function fromObject(object, long) {
             if (object instanceof $root.wca_chat.Command)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".wca_chat.Command: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.wca_chat.Command();
             switch (object.type) {
             default:
@@ -1670,17 +1790,21 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Command.toObject = function toObject(message, options) {
+        Command.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "SUBSCRIBE_GROUP" : 0;
                 object.targetId = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.wca_chat.Command.CommandType[message.type] === undefined ? message.type : $root.wca_chat.Command.CommandType[message.type] : message.type;
-            if (message.targetId != null && message.hasOwnProperty("targetId"))
+            if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
                 object.targetId = message.targetId;
             return object;
         };
@@ -1728,6 +1852,433 @@ export const wca_chat = $root.wca_chat = (() => {
         return Command;
     })();
 
+    wca_chat.WebRTCSignal = (function() {
+
+        /**
+         * Properties of a WebRTCSignal.
+         * @memberof wca_chat
+         * @interface IWebRTCSignal
+         * @property {wca_chat.WebRTCSignal.SignalType|null} [type] WebRTCSignal type
+         * @property {string|null} [senderId] WebRTCSignal senderId
+         * @property {string|null} [targetId] WebRTCSignal targetId
+         * @property {string|null} [sdp] WebRTCSignal sdp
+         * @property {string|null} [candidate] WebRTCSignal candidate
+         * @property {string|null} [callId] WebRTCSignal callId
+         * @property {boolean|null} [isVideo] WebRTCSignal isVideo
+         */
+
+        /**
+         * Constructs a new WebRTCSignal.
+         * @memberof wca_chat
+         * @classdesc Represents a WebRTCSignal.
+         * @implements IWebRTCSignal
+         * @constructor
+         * @param {wca_chat.IWebRTCSignal=} [properties] Properties to set
+         */
+        function WebRTCSignal(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WebRTCSignal type.
+         * @member {wca_chat.WebRTCSignal.SignalType} type
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         */
+        WebRTCSignal.prototype.type = 0;
+
+        /**
+         * WebRTCSignal senderId.
+         * @member {string} senderId
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         */
+        WebRTCSignal.prototype.senderId = "";
+
+        /**
+         * WebRTCSignal targetId.
+         * @member {string} targetId
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         */
+        WebRTCSignal.prototype.targetId = "";
+
+        /**
+         * WebRTCSignal sdp.
+         * @member {string} sdp
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         */
+        WebRTCSignal.prototype.sdp = "";
+
+        /**
+         * WebRTCSignal candidate.
+         * @member {string} candidate
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         */
+        WebRTCSignal.prototype.candidate = "";
+
+        /**
+         * WebRTCSignal callId.
+         * @member {string} callId
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         */
+        WebRTCSignal.prototype.callId = "";
+
+        /**
+         * WebRTCSignal isVideo.
+         * @member {boolean} isVideo
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         */
+        WebRTCSignal.prototype.isVideo = false;
+
+        /**
+         * Creates a new WebRTCSignal instance using the specified properties.
+         * @function create
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {wca_chat.IWebRTCSignal=} [properties] Properties to set
+         * @returns {wca_chat.WebRTCSignal} WebRTCSignal instance
+         */
+        WebRTCSignal.create = function create(properties) {
+            return new WebRTCSignal(properties);
+        };
+
+        /**
+         * Encodes the specified WebRTCSignal message. Does not implicitly {@link wca_chat.WebRTCSignal.verify|verify} messages.
+         * @function encode
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {wca_chat.IWebRTCSignal} message WebRTCSignal message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WebRTCSignal.encode = function encode(message, writer, q) {
+            if (!writer)
+                writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
+            if (message.senderId != null && Object.hasOwnProperty.call(message, "senderId"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.senderId);
+            if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.targetId);
+            if (message.sdp != null && Object.hasOwnProperty.call(message, "sdp"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.sdp);
+            if (message.candidate != null && Object.hasOwnProperty.call(message, "candidate"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.candidate);
+            if (message.callId != null && Object.hasOwnProperty.call(message, "callId"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.callId);
+            if (message.isVideo != null && Object.hasOwnProperty.call(message, "isVideo"))
+                writer.uint32(/* id 7, wireType 0 =*/56).bool(message.isVideo);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WebRTCSignal message, length delimited. Does not implicitly {@link wca_chat.WebRTCSignal.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {wca_chat.IWebRTCSignal} message WebRTCSignal message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WebRTCSignal.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
+        };
+
+        /**
+         * Decodes a WebRTCSignal message from the specified reader or buffer.
+         * @function decode
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {wca_chat.WebRTCSignal} WebRTCSignal
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WebRTCSignal.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.WebRTCSignal();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.type = reader.int32();
+                        break;
+                    }
+                case 2: {
+                        message.senderId = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.targetId = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.sdp = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.candidate = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.callId = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.isVideo = reader.bool();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WebRTCSignal message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {wca_chat.WebRTCSignal} WebRTCSignal
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WebRTCSignal.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WebRTCSignal message.
+         * @function verify
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WebRTCSignal.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                switch (message.type) {
+                default:
+                    return "type: enum value expected";
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                    break;
+                }
+            if (message.senderId != null && Object.hasOwnProperty.call(message, "senderId"))
+                if (!$util.isString(message.senderId))
+                    return "senderId: string expected";
+            if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
+                if (!$util.isString(message.targetId))
+                    return "targetId: string expected";
+            if (message.sdp != null && Object.hasOwnProperty.call(message, "sdp"))
+                if (!$util.isString(message.sdp))
+                    return "sdp: string expected";
+            if (message.candidate != null && Object.hasOwnProperty.call(message, "candidate"))
+                if (!$util.isString(message.candidate))
+                    return "candidate: string expected";
+            if (message.callId != null && Object.hasOwnProperty.call(message, "callId"))
+                if (!$util.isString(message.callId))
+                    return "callId: string expected";
+            if (message.isVideo != null && Object.hasOwnProperty.call(message, "isVideo"))
+                if (typeof message.isVideo !== "boolean")
+                    return "isVideo: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates a WebRTCSignal message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {wca_chat.WebRTCSignal} WebRTCSignal
+         */
+        WebRTCSignal.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.wca_chat.WebRTCSignal)
+                return object;
+            if (!$util.isObject(object))
+                throw TypeError(".wca_chat.WebRTCSignal: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.wca_chat.WebRTCSignal();
+            switch (object.type) {
+            default:
+                if (typeof object.type === "number") {
+                    message.type = object.type;
+                    break;
+                }
+                break;
+            case "OFFER":
+            case 0:
+                message.type = 0;
+                break;
+            case "ANSWER":
+            case 1:
+                message.type = 1;
+                break;
+            case "ICE_CANDIDATE":
+            case 2:
+                message.type = 2;
+                break;
+            case "CALL_INITIATE":
+            case 3:
+                message.type = 3;
+                break;
+            case "CALL_REJECT":
+            case 4:
+                message.type = 4;
+                break;
+            case "CALL_HANGUP":
+            case 5:
+                message.type = 5;
+                break;
+            }
+            if (object.senderId != null)
+                message.senderId = String(object.senderId);
+            if (object.targetId != null)
+                message.targetId = String(object.targetId);
+            if (object.sdp != null)
+                message.sdp = String(object.sdp);
+            if (object.candidate != null)
+                message.candidate = String(object.candidate);
+            if (object.callId != null)
+                message.callId = String(object.callId);
+            if (object.isVideo != null)
+                message.isVideo = Boolean(object.isVideo);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WebRTCSignal message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {wca_chat.WebRTCSignal} message WebRTCSignal
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WebRTCSignal.toObject = function toObject(message, options, q) {
+            if (!options)
+                options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
+            let object = {};
+            if (options.defaults) {
+                object.type = options.enums === String ? "OFFER" : 0;
+                object.senderId = "";
+                object.targetId = "";
+                object.sdp = "";
+                object.candidate = "";
+                object.callId = "";
+                object.isVideo = false;
+            }
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                object.type = options.enums === String ? $root.wca_chat.WebRTCSignal.SignalType[message.type] === undefined ? message.type : $root.wca_chat.WebRTCSignal.SignalType[message.type] : message.type;
+            if (message.senderId != null && Object.hasOwnProperty.call(message, "senderId"))
+                object.senderId = message.senderId;
+            if (message.targetId != null && Object.hasOwnProperty.call(message, "targetId"))
+                object.targetId = message.targetId;
+            if (message.sdp != null && Object.hasOwnProperty.call(message, "sdp"))
+                object.sdp = message.sdp;
+            if (message.candidate != null && Object.hasOwnProperty.call(message, "candidate"))
+                object.candidate = message.candidate;
+            if (message.callId != null && Object.hasOwnProperty.call(message, "callId"))
+                object.callId = message.callId;
+            if (message.isVideo != null && Object.hasOwnProperty.call(message, "isVideo"))
+                object.isVideo = message.isVideo;
+            return object;
+        };
+
+        /**
+         * Converts this WebRTCSignal to JSON.
+         * @function toJSON
+         * @memberof wca_chat.WebRTCSignal
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WebRTCSignal.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WebRTCSignal
+         * @function getTypeUrl
+         * @memberof wca_chat.WebRTCSignal
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WebRTCSignal.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/wca_chat.WebRTCSignal";
+        };
+
+        /**
+         * SignalType enum.
+         * @name wca_chat.WebRTCSignal.SignalType
+         * @enum {number}
+         * @property {number} OFFER=0 OFFER value
+         * @property {number} ANSWER=1 ANSWER value
+         * @property {number} ICE_CANDIDATE=2 ICE_CANDIDATE value
+         * @property {number} CALL_INITIATE=3 CALL_INITIATE value
+         * @property {number} CALL_REJECT=4 CALL_REJECT value
+         * @property {number} CALL_HANGUP=5 CALL_HANGUP value
+         */
+        WebRTCSignal.SignalType = (function() {
+            const valuesById = {}, values = Object.create(valuesById);
+            values[valuesById[0] = "OFFER"] = 0;
+            values[valuesById[1] = "ANSWER"] = 1;
+            values[valuesById[2] = "ICE_CANDIDATE"] = 2;
+            values[valuesById[3] = "CALL_INITIATE"] = 3;
+            values[valuesById[4] = "CALL_REJECT"] = 4;
+            values[valuesById[5] = "CALL_HANGUP"] = 5;
+            return values;
+        })();
+
+        return WebRTCSignal;
+    })();
+
     wca_chat.ProtocolWrapper = (function() {
 
         /**
@@ -1738,6 +2289,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @property {wca_chat.IPresence|null} [presence] ProtocolWrapper presence
          * @property {wca_chat.ICommand|null} [command] ProtocolWrapper command
          * @property {wca_chat.IReceipt|null} [receipt] ProtocolWrapper receipt
+         * @property {wca_chat.IWebRTCSignal|null} [webrtcSignal] ProtocolWrapper webrtcSignal
          */
 
         /**
@@ -1751,7 +2303,7 @@ export const wca_chat = $root.wca_chat = (() => {
         function ProtocolWrapper(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1787,17 +2339,25 @@ export const wca_chat = $root.wca_chat = (() => {
          */
         ProtocolWrapper.prototype.receipt = null;
 
+        /**
+         * ProtocolWrapper webrtcSignal.
+         * @member {wca_chat.IWebRTCSignal|null|undefined} webrtcSignal
+         * @memberof wca_chat.ProtocolWrapper
+         * @instance
+         */
+        ProtocolWrapper.prototype.webrtcSignal = null;
+
         // OneOf field names bound to virtual getters and setters
         let $oneOfFields;
 
         /**
          * ProtocolWrapper content.
-         * @member {"chatMessage"|"presence"|"command"|"receipt"|undefined} content
+         * @member {"chatMessage"|"presence"|"command"|"receipt"|"webrtcSignal"|undefined} content
          * @memberof wca_chat.ProtocolWrapper
          * @instance
          */
         Object.defineProperty(ProtocolWrapper.prototype, "content", {
-            get: $util.oneOfGetter($oneOfFields = ["chatMessage", "presence", "command", "receipt"]),
+            get: $util.oneOfGetter($oneOfFields = ["chatMessage", "presence", "command", "receipt", "webrtcSignal"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -1822,17 +2382,23 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ProtocolWrapper.encode = function encode(message, writer) {
+        ProtocolWrapper.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.chatMessage != null && Object.hasOwnProperty.call(message, "chatMessage"))
-                $root.wca_chat.ChatMessage.encode(message.chatMessage, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.wca_chat.ChatMessage.encode(message.chatMessage, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.presence != null && Object.hasOwnProperty.call(message, "presence"))
-                $root.wca_chat.Presence.encode(message.presence, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.wca_chat.Presence.encode(message.presence, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.command != null && Object.hasOwnProperty.call(message, "command"))
-                $root.wca_chat.Command.encode(message.command, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.wca_chat.Command.encode(message.command, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.receipt != null && Object.hasOwnProperty.call(message, "receipt"))
-                $root.wca_chat.Receipt.encode(message.receipt, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.wca_chat.Receipt.encode(message.receipt, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
+            if (message.webrtcSignal != null && Object.hasOwnProperty.call(message, "webrtcSignal"))
+                $root.wca_chat.WebRTCSignal.encode(message.webrtcSignal, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -1846,7 +2412,7 @@ export const wca_chat = $root.wca_chat = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ProtocolWrapper.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1860,31 +2426,41 @@ export const wca_chat = $root.wca_chat = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ProtocolWrapper.decode = function decode(reader, length) {
+        ProtocolWrapper.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let end = length === undefined ? reader.len : reader.pos + length, message = new $root.wca_chat.ProtocolWrapper();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.chatMessage = $root.wca_chat.ChatMessage.decode(reader, reader.uint32());
+                        message.chatMessage = $root.wca_chat.ChatMessage.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
-                        message.presence = $root.wca_chat.Presence.decode(reader, reader.uint32());
+                        message.presence = $root.wca_chat.Presence.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
-                        message.command = $root.wca_chat.Command.decode(reader, reader.uint32());
+                        message.command = $root.wca_chat.Command.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
-                        message.receipt = $root.wca_chat.Receipt.decode(reader, reader.uint32());
+                        message.receipt = $root.wca_chat.Receipt.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 5: {
+                        message.webrtcSignal = $root.wca_chat.WebRTCSignal.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -1915,46 +2491,60 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ProtocolWrapper.verify = function verify(message) {
+        ProtocolWrapper.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.chatMessage != null && message.hasOwnProperty("chatMessage")) {
+            if (message.chatMessage != null && Object.hasOwnProperty.call(message, "chatMessage")) {
                 properties.content = 1;
                 {
-                    let error = $root.wca_chat.ChatMessage.verify(message.chatMessage);
+                    let error = $root.wca_chat.ChatMessage.verify(message.chatMessage, long + 1);
                     if (error)
                         return "chatMessage." + error;
                 }
             }
-            if (message.presence != null && message.hasOwnProperty("presence")) {
+            if (message.presence != null && Object.hasOwnProperty.call(message, "presence")) {
                 if (properties.content === 1)
                     return "content: multiple values";
                 properties.content = 1;
                 {
-                    let error = $root.wca_chat.Presence.verify(message.presence);
+                    let error = $root.wca_chat.Presence.verify(message.presence, long + 1);
                     if (error)
                         return "presence." + error;
                 }
             }
-            if (message.command != null && message.hasOwnProperty("command")) {
+            if (message.command != null && Object.hasOwnProperty.call(message, "command")) {
                 if (properties.content === 1)
                     return "content: multiple values";
                 properties.content = 1;
                 {
-                    let error = $root.wca_chat.Command.verify(message.command);
+                    let error = $root.wca_chat.Command.verify(message.command, long + 1);
                     if (error)
                         return "command." + error;
                 }
             }
-            if (message.receipt != null && message.hasOwnProperty("receipt")) {
+            if (message.receipt != null && Object.hasOwnProperty.call(message, "receipt")) {
                 if (properties.content === 1)
                     return "content: multiple values";
                 properties.content = 1;
                 {
-                    let error = $root.wca_chat.Receipt.verify(message.receipt);
+                    let error = $root.wca_chat.Receipt.verify(message.receipt, long + 1);
                     if (error)
                         return "receipt." + error;
+                }
+            }
+            if (message.webrtcSignal != null && Object.hasOwnProperty.call(message, "webrtcSignal")) {
+                if (properties.content === 1)
+                    return "content: multiple values";
+                properties.content = 1;
+                {
+                    let error = $root.wca_chat.WebRTCSignal.verify(message.webrtcSignal, long + 1);
+                    if (error)
+                        return "webrtcSignal." + error;
                 }
             }
             return null;
@@ -1968,29 +2558,40 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {wca_chat.ProtocolWrapper} ProtocolWrapper
          */
-        ProtocolWrapper.fromObject = function fromObject(object) {
+        ProtocolWrapper.fromObject = function fromObject(object, long) {
             if (object instanceof $root.wca_chat.ProtocolWrapper)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".wca_chat.ProtocolWrapper: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.wca_chat.ProtocolWrapper();
             if (object.chatMessage != null) {
-                if (typeof object.chatMessage !== "object")
+                if (!$util.isObject(object.chatMessage))
                     throw TypeError(".wca_chat.ProtocolWrapper.chatMessage: object expected");
-                message.chatMessage = $root.wca_chat.ChatMessage.fromObject(object.chatMessage);
+                message.chatMessage = $root.wca_chat.ChatMessage.fromObject(object.chatMessage, long + 1);
             }
             if (object.presence != null) {
-                if (typeof object.presence !== "object")
+                if (!$util.isObject(object.presence))
                     throw TypeError(".wca_chat.ProtocolWrapper.presence: object expected");
-                message.presence = $root.wca_chat.Presence.fromObject(object.presence);
+                message.presence = $root.wca_chat.Presence.fromObject(object.presence, long + 1);
             }
             if (object.command != null) {
-                if (typeof object.command !== "object")
+                if (!$util.isObject(object.command))
                     throw TypeError(".wca_chat.ProtocolWrapper.command: object expected");
-                message.command = $root.wca_chat.Command.fromObject(object.command);
+                message.command = $root.wca_chat.Command.fromObject(object.command, long + 1);
             }
             if (object.receipt != null) {
-                if (typeof object.receipt !== "object")
+                if (!$util.isObject(object.receipt))
                     throw TypeError(".wca_chat.ProtocolWrapper.receipt: object expected");
-                message.receipt = $root.wca_chat.Receipt.fromObject(object.receipt);
+                message.receipt = $root.wca_chat.Receipt.fromObject(object.receipt, long + 1);
+            }
+            if (object.webrtcSignal != null) {
+                if (!$util.isObject(object.webrtcSignal))
+                    throw TypeError(".wca_chat.ProtocolWrapper.webrtcSignal: object expected");
+                message.webrtcSignal = $root.wca_chat.WebRTCSignal.fromObject(object.webrtcSignal, long + 1);
             }
             return message;
         };
@@ -2004,29 +2605,38 @@ export const wca_chat = $root.wca_chat = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ProtocolWrapper.toObject = function toObject(message, options) {
+        ProtocolWrapper.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
-            if (message.chatMessage != null && message.hasOwnProperty("chatMessage")) {
-                object.chatMessage = $root.wca_chat.ChatMessage.toObject(message.chatMessage, options);
+            if (message.chatMessage != null && Object.hasOwnProperty.call(message, "chatMessage")) {
+                object.chatMessage = $root.wca_chat.ChatMessage.toObject(message.chatMessage, options, q + 1);
                 if (options.oneofs)
                     object.content = "chatMessage";
             }
-            if (message.presence != null && message.hasOwnProperty("presence")) {
-                object.presence = $root.wca_chat.Presence.toObject(message.presence, options);
+            if (message.presence != null && Object.hasOwnProperty.call(message, "presence")) {
+                object.presence = $root.wca_chat.Presence.toObject(message.presence, options, q + 1);
                 if (options.oneofs)
                     object.content = "presence";
             }
-            if (message.command != null && message.hasOwnProperty("command")) {
-                object.command = $root.wca_chat.Command.toObject(message.command, options);
+            if (message.command != null && Object.hasOwnProperty.call(message, "command")) {
+                object.command = $root.wca_chat.Command.toObject(message.command, options, q + 1);
                 if (options.oneofs)
                     object.content = "command";
             }
-            if (message.receipt != null && message.hasOwnProperty("receipt")) {
-                object.receipt = $root.wca_chat.Receipt.toObject(message.receipt, options);
+            if (message.receipt != null && Object.hasOwnProperty.call(message, "receipt")) {
+                object.receipt = $root.wca_chat.Receipt.toObject(message.receipt, options, q + 1);
                 if (options.oneofs)
                     object.content = "receipt";
+            }
+            if (message.webrtcSignal != null && Object.hasOwnProperty.call(message, "webrtcSignal")) {
+                object.webrtcSignal = $root.wca_chat.WebRTCSignal.toObject(message.webrtcSignal, options, q + 1);
+                if (options.oneofs)
+                    object.content = "webrtcSignal";
             }
             return object;
         };

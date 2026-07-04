@@ -50,6 +50,18 @@ class EncryptionService {
                     // Export public key to JWK and upload to backend
                     const jwk = await window.crypto.subtle.exportKey("jwk", keyPair.publicKey);
                     await uploadPublicKey(JSON.stringify(jwk));
+                } else {
+                    // Self-healing: verify the public key actually exists on the server.
+                    try {
+                        const existingKey = await fetchPublicKey(userId);
+                        if (!existingKey || !existingKey.public_key_json) {
+                            console.log("[E2EE] Public key missing on server. Uploading local key.");
+                            const jwk = await window.crypto.subtle.exportKey("jwk", keyPair.publicKey);
+                            await uploadPublicKey(JSON.stringify(jwk));
+                        }
+                    } catch (err) {
+                        console.warn("[E2EE] Could not verify public key presence on server:", err);
+                    }
                 }
 
                 this._myPrivateKey = keyPair.privateKey;
