@@ -18,3 +18,21 @@ def test_login_view(client):
     # response = client.post(reverse('login'), {'username': 'testuser', 'password': 'password'})
     # assert response.status_code == 200 or response.status_code == 302
     assert True
+
+from chat.services.auth import generate_jwt_token
+import jwt
+from django.conf import settings
+
+@pytest.mark.django_db
+def test_jwt_expiration():
+    token = generate_jwt_token("test_user_id")
+    decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+    assert decoded['user_id'] == "test_user_id"
+    # Ensure expiration is set and it's short-lived (approx 15 mins)
+    import datetime
+    exp = datetime.datetime.fromtimestamp(decoded['exp'], tz=datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    diff = exp - now
+    # It should be around 15 minutes
+    assert diff.total_seconds() > 14 * 60
+    assert diff.total_seconds() < 16 * 60

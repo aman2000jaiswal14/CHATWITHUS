@@ -1110,3 +1110,54 @@ def api_mute_settings(request):
             return JsonResponse({'error': str(e)}, status=400)
     
     return JsonResponse({'error': 'method not allowed'}, status=405)
+
+
+@csrf_exempt
+def api_upload_public_key(request):
+    """Upload or update the authenticated user's public key."""
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'unauthorized'}, status=401)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        public_key_json = data.get('public_key_json')
+        if not public_key_json:
+            return JsonResponse({'error': 'bad_request', 'message': 'Missing public_key_json'}, status=400)
+
+        from .models import UserPublicKey
+        UserPublicKey.objects.update_or_create(
+            user=user,
+            defaults={'public_key_json': public_key_json}
+        )
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def api_get_public_key(request, username):
+    """Retrieve the public key for a given username."""
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'unauthorized'}, status=401)
+
+    if request.method != 'GET':
+        return JsonResponse({'error': 'method not allowed'}, status=405)
+
+    try:
+        from .models import UserPublicKey
+        target_user = User.objects.get(username=username)
+        key_obj = UserPublicKey.objects.get(user=target_user)
+        return JsonResponse({
+            'username': username,
+            'public_key_json': key_obj.public_key_json
+        })
+    except (User.DoesNotExist, UserPublicKey.DoesNotExist):
+        return JsonResponse({'error': 'not_found', 'message': f'Public key for {username} not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+

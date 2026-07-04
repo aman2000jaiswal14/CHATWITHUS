@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { wca_chat } from '../protocols/messages';
 import { useChatStore } from '../store/useChatStore';
-import { fetchBookmarks, fetchGroups, fetchStatuses } from './api';
+import { fetchBookmarks, fetchGroups, fetchStatuses, refreshToken } from './api';
 import encryptionService from './EncryptionService';
 
 class WebSocketClient {
@@ -29,8 +29,14 @@ class WebSocketClient {
 
     connect() {
         if (this.socket) return;
-        console.log('[WS] Connecting to', this.url);
-        this.socket = new WebSocket(this.url);
+        
+        // Dynamically append the current token to the base URL
+        const baseUrl = this.url.split('?')[0];
+        const token = window.CHAT_CONFIG?.TOKEN || '';
+        const connectionUrl = `${baseUrl}?token=${token}`;
+
+        console.log('[WS] Connecting to', connectionUrl);
+        this.socket = new WebSocket(connectionUrl);
         this.socket.binaryType = 'arraybuffer';
 
         this.socket.onopen = () => {
@@ -44,9 +50,22 @@ class WebSocketClient {
             console.error('[WS] Error', err);
         };
 
-        this.socket.onclose = () => {
-            console.log('[WS] Disconnected, reconnecting in 3s...');
+        this.socket.onclose = async (event) => {
+            console.log('[WS] Disconnected, code:', event.code);
             this.socket = null;
+            
+            // If the connection was closed due to authorization failure (code 4003)
+            if (event.code === 4003) {
+                console.log('[WS] Authorization failure detected. Clearing token and attempting refresh...');
+                window.CHAT_CONFIG.TOKEN = null;
+                try {
+                    await refreshToken();
+                    console.log('[WS] Token refreshed successfully.');
+                } catch (err) {
+                    console.error('[WS] Token refresh failed:', err);
+                }
+            }
+            
             setTimeout(() => this.connect(), 3000);
         };
     }
@@ -92,7 +111,12 @@ class WebSocketClient {
 
                 // E2EE: Decrypt payload
                 const encryptedPayload = new TextDecoder().decode(chatMsg.payload);
-                const decryptedContent = await encryptionService.decrypt(encryptedPayload);
+                const decryptedContent = await encryptionService.decrypt(
+                    encryptedPayload,
+                    chatMsg.senderId,
+                    chatMsg.isGroupMessage,
+                    chatMsg.targetId
+                );
 
                 const msg = {
                     messageId: chatMsg.messageId,
@@ -235,7 +259,7 @@ class WebSocketClient {
 
         try {
             // E2EE: Encrypt content before sending
-            const encryptedContent = await encryptionService.encrypt(content);
+            const encryptedContent = await encryptionService.encrypt(content, String(targetId), isGroup);
             const msgData = {
                 messageId: Math.random().toString(36).substr(2, 9),
                 senderId: this.userId,

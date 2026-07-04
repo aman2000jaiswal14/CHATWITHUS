@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useChatStore } from '../../store/useChatStore';
 import { User, Shield, Briefcase, UserCircle } from 'lucide-react';
+import { encryptionService } from '../../services/EncryptionService';
 
 const Register = () => {
     const config = window.CHAT_CONFIG || {};
@@ -32,9 +33,14 @@ const Register = () => {
             if (res.ok) {
                 setCurrentUser(formData.username);
                 setIsRegistered(true);
-                // No more window.location.reload(); 
+                encryptionService.preDeriveKey(formData.username);
             } else {
-                setError(data.error || 'Registration failed');
+                let errorMsg = 'Registration failed';
+                try {
+                    const data = await res.json();
+                    errorMsg = data.error || errorMsg;
+                } catch (_) {}
+                setError(errorMsg);
             }
         } catch (err) {
             setError('Connection error');

@@ -2,11 +2,11 @@ import jwt
 import datetime
 from django.conf import settings
 
-def generate_jwt_token(user_id, expiration_days=30):
+def generate_jwt_token(user_id, expiration_minutes=15):
     """Generate a signed JWT token for a given user."""
     payload = {
         'user_id': str(user_id),
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=expiration_days),
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=expiration_minutes),
         'iat': datetime.datetime.utcnow()
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')

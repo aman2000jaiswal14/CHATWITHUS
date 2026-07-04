@@ -37,7 +37,7 @@ const getFullUrl = (url) => {
     return `${cleanBase}${cleanUrl}`;
 };
 
-const DecryptedImage = ({ url, alt }) => {
+const DecryptedImage = ({ url, alt, senderId, isGroup, chatId }) => {
     const [decryptedUrl, setDecryptedUrl] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
 
@@ -47,7 +47,7 @@ const DecryptedImage = ({ url, alt }) => {
             try {
                 const response = await fetch(url);
                 const buffer = await response.arrayBuffer();
-                const decrypted = await encryptionService.decryptBuffer(buffer);
+                const decrypted = await encryptionService.decryptBuffer(buffer, senderId, isGroup, chatId);
                 const blob = new Blob([decrypted]);
                 const localUrl = URL.createObjectURL(blob);
                 if (isMounted) setDecryptedUrl(localUrl);
@@ -93,7 +93,7 @@ const DecryptedImage = ({ url, alt }) => {
     );
 };
 
-const DecryptedFile = ({ url, name, size }) => {
+const DecryptedFile = ({ url, name, size, senderId, isGroup, chatId }) => {
     const [decrypting, setDecrypting] = React.useState(false);
 
     const handleDownload = async () => {
@@ -101,7 +101,7 @@ const DecryptedFile = ({ url, name, size }) => {
         try {
             const response = await fetch(url);
             const buffer = await response.arrayBuffer();
-            const decrypted = await encryptionService.decryptBuffer(buffer);
+            const decrypted = await encryptionService.decryptBuffer(buffer, senderId, isGroup, chatId);
             const blob = new Blob([decrypted]);
             const localUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -139,7 +139,7 @@ const DecryptedFile = ({ url, name, size }) => {
     );
 };
 
-const DecryptedAudio = ({ url, name }) => {
+const DecryptedAudio = ({ url, name, senderId, isGroup, chatId }) => {
     const [decryptedUrl, setDecryptedUrl] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
     const [isPlaying, setIsPlaying] = React.useState(false);
@@ -155,7 +155,7 @@ const DecryptedAudio = ({ url, name }) => {
             try {
                 const response = await fetch(url);
                 const buffer = await response.arrayBuffer();
-                const decrypted = await encryptionService.decryptBuffer(buffer);
+                const decrypted = await encryptionService.decryptBuffer(buffer, senderId, isGroup, chatId);
                 const blob = new Blob([decrypted], { type: 'audio/webm' });
                 const localUrl = URL.createObjectURL(blob);
                 if (isMounted) setDecryptedUrl(localUrl);
@@ -380,7 +380,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                             try {
                                 const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
                                 const e2eeCiphertext = new TextDecoder().decode(bytes);
-                                content = await encryptionService.decrypt(e2eeCiphertext);
+                                content = await encryptionService.decrypt(e2eeCiphertext, m.senderId, isGroupChat, m.targetId);
                             } catch (e) {
                                 try {
                                     const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
@@ -452,7 +452,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                     const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
                                     const e2eeCiphertext = new TextDecoder().decode(bytes);
                                     // Step 2: Decrypt E2EE layer
-                                    content = await encryptionService.decrypt(e2eeCiphertext);
+                                    content = await encryptionService.decrypt(e2eeCiphertext, m.senderId, isGroupChat, m.targetId);
                                 } catch (e) {
                                     // Fallback: payload might be unencrypted plaintext
                                     try {
@@ -489,7 +489,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                                 try {
                                                     const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
                                                     const e2eeCiphertext = new TextDecoder().decode(bytes);
-                                                    content = await encryptionService.decrypt(e2eeCiphertext);
+                                                    content = await encryptionService.decrypt(e2eeCiphertext, m.senderId, isGroupChat, m.targetId);
                                                 } catch (e) { content = m.payload; }
                                             }
                                             return { ...m, content: content, attachment: m.attachment, is_expired: m.is_expired, expires_at: m.expires_at ? new Date(m.expires_at).getTime() : null };
@@ -595,7 +595,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
             // Read file as ArrayBuffer
             const buffer = await file.arrayBuffer();
             // Encrypt buffer
-            const encryptedBuffer = await encryptionService.encryptBuffer(buffer);
+            const encryptedBuffer = await encryptionService.encryptBuffer(buffer, activeChatId, isGroupChat);
             // Create encrypted file object
             const encryptedFile = new File([encryptedBuffer], file.name, { type: file.type });
 
@@ -634,7 +634,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                 setIsUploading(true);
                 try {
                     const buffer = await audioBlob.arrayBuffer();
-                    const encryptedBuffer = await encryptionService.encryptBuffer(buffer);
+                    const encryptedBuffer = await encryptionService.encryptBuffer(buffer, activeChatId, isGroupChat);
 
                     const fileName = `voice_message_${Date.now()}.webm`;
                     const encryptedFile = new File([encryptedBuffer], fileName, { type: 'audio/webm' });
@@ -732,7 +732,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     })();
 
 
-    const renderAttachment = (att) => {
+    const renderAttachment = (att, msg) => {
         if (!att || !att.url) return null;
         const isImage = att.type?.startsWith('image/');
         const isAudio = att.type?.startsWith('audio/');
@@ -741,16 +741,16 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         if (isImage) {
             return (
                 <div className="mt-2 rounded-lg overflow-hidden border border-slate-700 bg-slate-800 max-w-sm">
-                    <DecryptedImage url={absoluteUrl} alt={att.name} />
+                    <DecryptedImage url={absoluteUrl} alt={att.name} senderId={msg.senderId} isGroup={isGroupChat} chatId={activeChatId} />
                 </div>
             );
         }
 
         if (isAudio) {
-            return <DecryptedAudio url={absoluteUrl} name={att.name} />;
+            return <DecryptedAudio url={absoluteUrl} name={att.name} senderId={msg.senderId} isGroup={isGroupChat} chatId={activeChatId} />;
         }
 
-        return <DecryptedFile url={absoluteUrl} name={att.name} size={att.size} />;
+        return <DecryptedFile url={absoluteUrl} name={att.name} size={att.size} senderId={msg.senderId} isGroup={isGroupChat} chatId={activeChatId} />;
     };
 
     const formatTimeShort = (timestamp) => {
@@ -1010,7 +1010,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                                 <Timer size={12} /> MSG TIME EXPIRES
                                             </div>
                                         ) : (
-                                            renderAttachment(msg.attachment)
+                                            renderAttachment(msg.attachment, msg)
                                         )}
                                         {(msg.type === 2 || isEmergency) && !isExpired && (
                                             <div className="flex items-center gap-2 font-bold uppercase text-red-400 mt-1 pt-1 border-t border-red-500/20">

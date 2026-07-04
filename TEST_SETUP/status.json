@@ -1,22 +1,16 @@
 {
     "Backend": {
-        "status": "PASSED",
-        "details": "re/wsgi.py                                                             4      4     0%\nmanage.py                                                               11     11     0%\n----------------------------------------------------------------------------------------\nTOTAL                                                                 1189    942    21%\nCoverage HTML written to dir TEST_SETUP/reports/backend_coverage\n============================== 2 passed in 3.86s ===============================\n",
+        "status": "ERROR",
+        "details": "[Errno 2] No such file or directory: '/home/aman/aman/Antigravity Projects/CHATWITHUS/CHATWITHUS/TEST_SETUP/venv/bin/python'",
         "cases": [
             {
-                "name": "test_user_creation",
-                "status": "PASSED",
-                "error": "",
-                "solution": ""
-            },
-            {
-                "name": "test_login_view",
-                "status": "PASSED",
-                "error": "",
-                "solution": ""
+                "name": "Execution",
+                "status": "ERROR",
+                "error": "[Errno 2] No such file or directory: '/home/aman/aman/Antigravity Projects/CHATWITHUS/CHATWITHUS/TEST_SETUP/venv/bin/python'",
+                "solution": "Check execution environment"
             }
         ],
-        "timestamp": "2026-03-07 17:52:16"
+        "timestamp": "2026-07-04 16:31:08"
     },
     "Frontend": {
         "status": "PASSED",

@@ -58,7 +58,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                     try {
                         const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
                         const e2eeCiphertext = new TextDecoder().decode(bytes);
-                        content = await encryptionService.decrypt(e2eeCiphertext);
+                        content = await encryptionService.decrypt(e2eeCiphertext, m.senderId, isGroup, chatId);
                     } catch (e) {
                         try {
                             const bytes = new Uint8Array(m.payload.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
@@ -115,7 +115,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                             const fileUrl = getFullUrl(msg.attachment.url);
                             const resp = await fetch(fileUrl);
                             const buffer = await resp.arrayBuffer();
-                            const decrypted = await encryptionService.decryptBuffer(buffer);
+                            const decrypted = await encryptionService.decryptBuffer(buffer, msg.senderId, isGroup, chatId);
 
                             let fileName = msg.attachment.name || 'file';
                             if (nameCount[fileName]) {

@@ -174,3 +174,17 @@ class MessageAttachment(models.Model):
 
     def __str__(self):
         return f"Attachment for {self.message.message_id}: {self.decrypted_file_name}"
+
+
+class UserPublicKey(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='public_key'
+    )
+    public_key_json = models.TextField()  # Exported JWK format
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Public Key for {self.user.username}"
+

@@ -22,13 +22,14 @@ Ensure the following are installed on your system:
 
 2. **Create a Virtual Environment**:
    ```bash
-   python -m venv venv
+   python3 -m venv venv
    source venv/bin/activate  # On Windows use: venv\Scripts\activate
    ```
 
 3. **Install Core Dependencies**:
    ```bash
    pip install django channels daphne protobuf asgiref channels-redis
+   pip install -r requirements.txt
    ```
 
 4. **Database Configuration**:
@@ -61,6 +62,7 @@ Ensure the following are installed on your system:
 2. **Install Packages**:
    ```bash
    npm install
+   npm audit fix
    ```
 
 3. **Build for Production**:
@@ -72,11 +74,29 @@ Ensure the following are installed on your system:
 4. **Deploy to Static Assets**:
    Copy the built file into the Django static directory so the backend can serve it.
    ```bash
+   npm install --save-dev javascript-obfuscator
+   cd ..
+   ./generate_frontend.sh
+   ```
+   or
+   ```bash
    cp dist/widget.js "../Main Application/static/chat/widget.js"
    ```
 
 ---
+5. **Generate License**:
+   ```bash
+   cd CWU
+   ./generate_premium_license.sh
+   
+   ```
 
+6. **Run with SSL**:
+   ```bash
+   cd ../Main\ Application/
+   ./run_ssl_dev.sh  
+   
+   ```
 ## Step 3: Global Configuration
 
 The chat widget expects a configuration object to be present in the HTML of the main application. Ensure your host page includes:

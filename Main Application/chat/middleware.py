@@ -39,8 +39,8 @@ class CSRFExemptJWTModuleMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # 1. Bypass check for Identity Signature in token generation endpoint
-        if request.path.endswith('/api/auth/token/'):
+        # 1. Bypass check for Identity Signature in token generation and registration endpoints
+        if request.path.endswith('/api/auth/token/') or request.path.endswith('/api/register/'):
             setattr(request, '_dont_enforce_csrf_checks', True)
         
         # 2. Check for Authorization header
