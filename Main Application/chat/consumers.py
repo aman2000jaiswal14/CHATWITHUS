@@ -395,6 +395,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     defaults={
                         'sender': sender,
                         'content': content,
+                        'message_type': message.type,
                         'is_emergency_broadcast': True,
                         'expires_at': expires_at,
                         'reply_to_message_id': message.reply_to_message_id if message.reply_to_message_id else None,
@@ -420,6 +421,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'sender': sender,
                             'group': group,
                             'content': content,
+                            'message_type': message.type,
                             'expires_at': expires_at,
                             'reply_to_message_id': message.reply_to_message_id if message.reply_to_message_id else None,
                         }
@@ -447,6 +449,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'sender': sender,
                             'recipient': recipient,
                             'content': content,
+                            'message_type': message.type,
                             'expires_at': expires_at,
                             'reply_to_message_id': message.reply_to_message_id if message.reply_to_message_id else None,
                         }

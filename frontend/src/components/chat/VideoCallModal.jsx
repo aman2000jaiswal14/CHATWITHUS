@@ -91,6 +91,8 @@ const VideoCallModal = () => {
     const [volume, setVolume] = useState(80);
     const [prevVolume, setPrevVolume] = useState(80);
     const [callDuration, setCallDuration] = useState(0);
+    const callDurationRef = useRef(0);
+    const isInitiatorRef = useRef(false);
 
     const localLevel = useAudioLevel(localStream);
     const remoteLevel = useAudioLevel(remoteStream);
@@ -101,13 +103,27 @@ const VideoCallModal = () => {
     const remoteVideoRef = useRef(null);
     const remoteAudioRef = useRef(null);
 
+    // Sync initiation state
+    useEffect(() => {
+        if (outgoingCall) {
+            isInitiatorRef.current = true;
+        } else if (incomingCall) {
+            isInitiatorRef.current = false;
+        }
+    }, [outgoingCall, incomingCall]);
+
     // Duration and volume management
     useEffect(() => {
         let interval;
         if (activeCall) {
             setCallDuration(0);
+            callDurationRef.current = 0;
             interval = setInterval(() => {
-                setCallDuration(prev => prev + 1);
+                setCallDuration(prev => {
+                    const next = prev + 1;
+                    callDurationRef.current = next;
+                    return next;
+                });
             }, 1000);
         } else {
             setVolume(80);
@@ -178,6 +194,27 @@ const VideoCallModal = () => {
                 },
                 onCallEnd: () => {
                     console.log("[WebRTC] Call ended callback");
+                    
+                    const state = useChatStore.getState();
+                    const active = state.activeCall;
+                    const outgoing = state.outgoingCall;
+                    
+                    if (isInitiatorRef.current) {
+                        if (active) {
+                            const durationStr = formatDuration(callDurationRef.current);
+                            const msgText = `${active.isVideo ? "Video" : "Voice"} call ended (${durationStr})`;
+                            wsClient.sendMessage(active.targetId, msgText, false, 4);
+                        } else if (outgoing) {
+                            if (webrtcService.wasRejected) {
+                                const msgText = `Declined ${outgoing.isVideo ? "video" : "voice"} call`;
+                                wsClient.sendMessage(outgoing.targetId, msgText, false, 4);
+                            } else {
+                                const msgText = `Missed ${outgoing.isVideo ? "video" : "voice"} call`;
+                                wsClient.sendMessage(outgoing.targetId, msgText, false, 4);
+                            }
+                        }
+                    }
+                    
                     resetCallState();
                     setLocalStream(null);
                     setRemoteStream(null);
@@ -474,15 +511,14 @@ const VideoCallModal = () => {
 
                                 {/* Local video PIP (Picture in Picture) */}
                                 <div className="absolute bottom-4 right-4 z-10 overflow-hidden rounded-2xl border-2 border-slate-800 bg-slate-950 aspect-video w-32 md:w-48 shadow-lg">
-                                    {!isVideoMuted ? (
-                                        <video
-                                            ref={localVideoRef}
-                                            autoPlay
-                                            playsInline
-                                            muted
-                                            className="h-full w-full object-cover scale-x-[-1]"
-                                        />
-                                    ) : (
+                                    <video
+                                        ref={localVideoRef}
+                                        autoPlay
+                                        playsInline
+                                        muted
+                                        className={`h-full w-full object-cover scale-x-[-1] ${isVideoMuted ? 'hidden' : ''}`}
+                                    />
+                                    {isVideoMuted && (
                                         <div className="flex h-full w-full items-center justify-center bg-slate-900">
                                             <VideoOff className="h-5 w-5 text-slate-600" />
                                         </div>

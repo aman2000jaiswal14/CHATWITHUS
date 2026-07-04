@@ -971,15 +971,44 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                 </div>
                             )}
 
-                            {msg.type === 4 ? (
-                                <div className="flex items-center justify-center w-full my-3">
-                                    <div className="bg-slate-800/40 backdrop-blur-sm px-4 py-1.5 rounded-full border border-slate-700/10 transition-all duration-300">
-                                        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider font-mono">
-                                            {msg.content || ''}
-                                        </span>
+                            {msg.type === 4 ? (() => {
+                                const lower = (msg.content || '').toLowerCase();
+                                const isOwnSender = String(msg.senderId).toLowerCase() === String(currentUser).toLowerCase();
+                                const durationMatch = (msg.content || '').match(/\((.*?)\)/);
+                                const durationStr = durationMatch ? ` ${durationMatch[0]}` : '';
+                                const isVideo = lower.includes('video');
+                                const callType = isVideo ? 'video' : 'voice';
+                                
+                                let sysText = msg.content || '';
+                                let sysClass = 'bg-slate-800/40 border border-slate-700/10 text-slate-400';
+                                
+                                if (lower.includes('missed')) {
+                                    sysText = isOwnSender 
+                                        ? `Missed ${callType} call to @${msg.targetId || activeChatId}`
+                                        : `You missed ${callType} call from @${msg.senderId}`;
+                                    sysClass = 'bg-rose-950/20 border border-rose-500/30 text-rose-400';
+                                } else if (lower.includes('declined')) {
+                                    sysText = isOwnSender
+                                        ? `@${msg.targetId || activeChatId} declined your ${callType} call`
+                                        : `You declined ${callType} call from @${msg.senderId}`;
+                                    sysClass = 'bg-rose-950/20 border border-rose-500/30 text-rose-400';
+                                } else if (lower.includes('ended')) {
+                                    sysText = isOwnSender
+                                        ? `Outgoing ${callType} call${durationStr}`
+                                        : `Incoming ${callType} call${durationStr}`;
+                                    sysClass = 'bg-emerald-950/20 border border-emerald-500/30 text-emerald-400';
+                                }
+                                
+                                return (
+                                    <div className="flex items-center justify-center w-full my-3">
+                                        <div className={`backdrop-blur-sm px-4 py-1.5 rounded-full transition-all duration-300 ${sysClass}`}>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider font-mono">
+                                                {sysText}
+                                            </span>
+                                        </div>
                                     </div>
-                                </div>
-                            ) : (
+                                );
+                            })() : (
                                 <div id={`msg-${msg.messageId}`} className={`flex flex-col max-w-[85%] ${isOwn ? 'self-end ml-auto' : 'self-start mr-auto'}`}>
                                     <div className="flex items-baseline gap-1.5 mb-0.5">
                                         <span className={`text-[10px] font-semibold ${isOwn ? 'text-slate-400' : (isEmergency ? 'text-red-500' : 'text-emerald-500')}`}>{isOwn ? 'ME' : msg.senderId}</span>

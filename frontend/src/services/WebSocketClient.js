@@ -110,13 +110,23 @@ class WebSocketClient {
                 this.receivedMessages.add(chatMsg.messageId);
 
                 // E2EE: Decrypt payload
-                const encryptedPayload = new TextDecoder().decode(chatMsg.payload);
-                const decryptedContent = await encryptionService.decrypt(
-                    encryptedPayload,
-                    chatMsg.senderId,
-                    chatMsg.isGroupMessage,
-                    chatMsg.targetId
-                );
+                let decryptedContent = '';
+                try {
+                    const encryptedPayload = new TextDecoder().decode(chatMsg.payload);
+                    decryptedContent = await encryptionService.decrypt(
+                        encryptedPayload,
+                        chatMsg.senderId,
+                        chatMsg.isGroupMessage,
+                        chatMsg.targetId
+                    );
+                } catch (err) {
+                    console.warn('[WS] E2EE Decryption failed, falling back to raw payload:', err);
+                    try {
+                        decryptedContent = new TextDecoder().decode(chatMsg.payload);
+                    } catch (err2) {
+                        decryptedContent = '[Decryption Error]';
+                    }
+                }
 
                 const msg = {
                     messageId: chatMsg.messageId,
@@ -459,6 +469,7 @@ class WebSocketClient {
                     (state.outgoingCall && state.outgoingCall.callId === sig.callId) ||
                     (state.activeCall && state.activeCall.callId === sig.callId)
                 ) {
+                    webrtcService.wasRejected = true;
                     webrtcService.handleCallEndLocally();
                 }
                 break;
@@ -468,6 +479,7 @@ class WebSocketClient {
                     (state.outgoingCall && state.outgoingCall.callId === sig.callId) ||
                     (state.activeCall && state.activeCall.callId === sig.callId)
                 ) {
+                    webrtcService.wasHungUp = true;
                     webrtcService.handleCallEndLocally();
                 }
                 break;

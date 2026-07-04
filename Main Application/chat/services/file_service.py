@@ -3,7 +3,8 @@ from django.core.exceptions import ValidationError
 
 ALLOWED_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.gif', '.pdf', '.docx', '.pptx', '.xlsx', 
-    '.zip', '.txt', '.csv', '.xml', '.json', '.ods'
+    '.zip', '.txt', '.csv', '.xml', '.json', '.ods',
+    '.webm', '.mp3', '.mp4', '.ogg', '.wav', '.m4a'
 }
 
 def validate_attachment(uploaded_file):

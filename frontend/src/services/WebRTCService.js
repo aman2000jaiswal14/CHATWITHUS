@@ -27,6 +27,8 @@ class WebRTCService {
         this.onRemoteStreamCallback = onRemoteStream;
         this.onConnectionStateCallback = onConnectionState;
         this.onCallEndCallback = onCallEnd;
+        this.wasRejected = false;
+        this.wasHungUp = false;
     }
 
     async getLocalStream(isVideo = true) {
@@ -297,6 +299,7 @@ class WebRTCService {
                 callId: callId || this.currentCallId
             });
         }
+        this.wasRejected = true;
         this.handleCallEndLocally();
     }
 
@@ -309,6 +312,7 @@ class WebRTCService {
                 callId: this.currentCallId
             });
         }
+        this.wasHungUp = true;
         this.handleCallEndLocally();
     }
 
@@ -364,6 +368,9 @@ class WebRTCService {
         this.remoteStream = null;
         this.targetUserId = null;
         this.currentCallId = null;
+        // Reset per-call termination flags so they don't leak into the next call
+        this.wasRejected = false;
+        this.wasHungUp = false;
     }
 }
 
