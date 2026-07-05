@@ -51,29 +51,52 @@ class MessageHandler:
         """Sync helper to broadcast a message to a group via channel layer."""
         import base64
         import time
+        import json
         from asgiref.sync import async_to_sync
         from channels.layers import get_channel_layer
+        from ..services.licensing import LicensingService
         
-        pb_msg = messages_pb2.ChatMessage()
-        pb_msg.message_id = message_id
-        pb_msg.sender_id = sender_id
-        pb_msg.target_id = str(group_id)
-        pb_msg.type = msg_type
-        pb_msg.payload = content.encode('utf-8')
-        pb_msg.sent_at = int(time.time() * 1000)
-        pb_msg.is_group_message = True
-        
-        wrapper = messages_pb2.ProtocolWrapper()
-        wrapper.chat_message.CopyFrom(pb_msg)
-        
-        raw_bytes = wrapper.SerializeToString()
-        b64_data = base64.b64encode(raw_bytes).decode('utf-8')
-        
+        license_info = LicensingService.get_license_info()
+        modules = license_info.get('MODULES', '') if license_info else ''
+        has_protobuf = 'PROTOBUF' in modules
+
+        if has_protobuf:
+            pb_msg = messages_pb2.ChatMessage()
+            pb_msg.message_id = message_id
+            pb_msg.sender_id = sender_id
+            pb_msg.target_id = str(group_id)
+            pb_msg.type = msg_type
+            pb_msg.payload = content.encode('utf-8')
+            pb_msg.sent_at = int(time.time() * 1000)
+            pb_msg.is_group_message = True
+            
+            wrapper = messages_pb2.ProtocolWrapper()
+            wrapper.chat_message.CopyFrom(pb_msg)
+            
+            raw_bytes = wrapper.SerializeToString()
+            b64_data = base64.b64encode(raw_bytes).decode('utf-8')
+            is_protobuf = True
+        else:
+            wrapper_data = {
+                'chatMessage': {
+                    'messageId': message_id,
+                    'senderId': sender_id,
+                    'targetId': str(group_id),
+                    'type': msg_type,
+                    'payload': content,
+                    'sentAt': int(time.time() * 1000),
+                    'isGroupMessage': True
+                }
+            }
+            b64_data = json.dumps(wrapper_data)
+            is_protobuf = False
+
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f'group_{group_id}',
             {
                 'type': 'chat.message',
-                'data': b64_data
+                'data': b64_data,
+                'is_protobuf': is_protobuf
             }
         )

@@ -81,73 +81,115 @@ class WebSocketClient {
         }
     }
 
+    useProtobuf() {
+        return (window.CWU_VERIFIED_MODULES || []).includes('PROTOBUF');
+    }
+
     async onmessage(event) {
+        let wrapper = null;
         if (typeof event.data === 'string') {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === 'group_refresh') {
                     this.refreshData(data.reason);
+                    return;
                 } else if (data.type === 'presence_update') {
                     useChatStore.getState().updatePresence(data.user_id, {
                         status: data.status,
                         is_online: data.is_online
                     });
+                    return;
+                }
+
+                // Check if it is a JSON ProtocolWrapper
+                if (data.chatMessage || data.presence || data.receipt || data.webrtcSignal || data.chat_message || data.webrtc_signal) {
+                    wrapper = data;
+                    if (data.chatMessage || data.chat_message) wrapper.content = 'chatMessage';
+                    else if (data.presence) wrapper.content = 'presence';
+                    else if (data.receipt) wrapper.content = 'receipt';
+                    else if (data.webrtcSignal || data.webrtc_signal) wrapper.content = 'webrtcSignal';
+                } else {
+                    console.warn('[WS] Unknown text message:', data);
+                    return;
                 }
             } catch (err) {
                 console.error('[WS] Failed to parse text message', err);
+                return;
             }
-            return;
+        } else {
+            const data = new Uint8Array(event.data);
+            try {
+                wrapper = wca_chat.ProtocolWrapper.decode(data);
+            } catch (err) {
+                console.error('[WS] Failed to decode binary message', err);
+                return;
+            }
         }
 
-        const data = new Uint8Array(event.data);
         try {
-            const wrapper = wca_chat.ProtocolWrapper.decode(data);
-
-            // Use the oneof 'content' field to determine message type
+            // Use the content / wrapper type to determine message type
             if (wrapper.content === 'chatMessage') {
-                const chatMsg = wrapper.chatMessage;
-                if (this.receivedMessages.has(chatMsg.messageId)) return;
-                this.receivedMessages.add(chatMsg.messageId);
+                const chatMsg = wrapper.chatMessage || wrapper.chat_message;
+                const messageId = chatMsg.messageId || chatMsg.message_id;
+                if (this.receivedMessages.has(messageId)) return;
+                this.receivedMessages.add(messageId);
+
+                const senderId = chatMsg.senderId || chatMsg.sender_id;
+                const targetId = chatMsg.targetId || chatMsg.target_id;
+                const isGroupMessage = chatMsg.isGroupMessage !== undefined ? chatMsg.isGroupMessage : chatMsg.is_group_message;
+                const msgType = chatMsg.type;
+                const sentAt = chatMsg.sentAt !== undefined ? chatMsg.sentAt : chatMsg.sent_at;
+                const timerSeconds = chatMsg.timerSeconds !== undefined ? chatMsg.timerSeconds : chatMsg.timer_seconds;
+                const replyToMessageId = chatMsg.replyToMessageId || chatMsg.reply_to_message_id;
 
                 // E2EE: Decrypt payload
                 let decryptedContent = '';
                 try {
-                    const encryptedPayload = new TextDecoder().decode(chatMsg.payload);
+                    const payload = chatMsg.payload;
+                    const encryptedPayload = (typeof payload === 'string')
+                        ? payload
+                        : new TextDecoder().decode(payload);
                     decryptedContent = await encryptionService.decrypt(
                         encryptedPayload,
-                        chatMsg.senderId,
-                        chatMsg.isGroupMessage,
-                        chatMsg.targetId
+                        senderId,
+                        isGroupMessage,
+                        targetId
                     );
                 } catch (err) {
                     console.warn('[WS] E2EE Decryption failed, falling back to raw payload:', err);
                     try {
-                        decryptedContent = new TextDecoder().decode(chatMsg.payload);
+                        const payload = chatMsg.payload;
+                        decryptedContent = (typeof payload === 'string')
+                            ? payload
+                            : new TextDecoder().decode(payload);
                     } catch (err2) {
                         decryptedContent = '[Decryption Error]';
                     }
                 }
 
+                const attachmentRaw = chatMsg.attachment;
+                const attachment = attachmentRaw ? {
+                    id: attachmentRaw.id,
+                    name: attachmentRaw.name,
+                    type: attachmentRaw.type,
+                    url: attachmentRaw.url,
+                    size: attachmentRaw.size
+                } : null;
+
                 const msg = {
-                    messageId: chatMsg.messageId,
-                    senderId: chatMsg.senderId,
-                    targetId: chatMsg.targetId,
-                    isGroupMessage: chatMsg.isGroupMessage,
-                    type: chatMsg.type,
+                    messageId: messageId,
+                    senderId: senderId,
+                    targetId: targetId,
+                    isGroupMessage: isGroupMessage,
+                    type: msgType,
                     content: decryptedContent,
-                    sentAt: Number(chatMsg.sentAt),
-                    timerSeconds: chatMsg.timerSeconds || 0,
-                    replyToMessageId: chatMsg.replyToMessageId,
-                    expires_at: chatMsg.timerSeconds > 0
-                        ? Number(chatMsg.sentAt) + chatMsg.timerSeconds * 1000
+                    sentAt: Number(sentAt),
+                    timerSeconds: timerSeconds || 0,
+                    replyToMessageId: replyToMessageId,
+                    expires_at: timerSeconds > 0
+                        ? Number(sentAt) + timerSeconds * 1000
                         : null,
-                    attachment: chatMsg.attachment ? {
-                        id: chatMsg.attachment.id,
-                        name: chatMsg.attachment.name,
-                        type: chatMsg.attachment.type,
-                        url: chatMsg.attachment.url,
-                        size: chatMsg.attachment.size
-                    } : null
+                    attachment: attachment
                 };
 
                 const chatId = msg.isGroupMessage ? String(msg.targetId) :
@@ -188,25 +230,39 @@ class WebSocketClient {
                 }
             } else if (wrapper.content === 'presence') {
                 const presence = wrapper.presence;
-                useChatStore.getState().updatePresence(presence.userId, {
-                    status: presence.status,
-                    is_online: presence.isOnline
+                const presenceUserId = presence.userId || presence.user_id;
+                const presenceStatus = presence.status;
+                const presenceIsOnline = presence.isOnline !== undefined ? presence.isOnline : presence.is_online;
+                useChatStore.getState().updatePresence(presenceUserId, {
+                    status: presenceStatus,
+                    is_online: presenceIsOnline
                 });
             } else if (wrapper.content === 'receipt') {
                 const receipt = wrapper.receipt;
-                // ReceiptType: DELIVERED=0, READ=1
-                // We use 1 for Delivered, 2 for Read in our UI store to match backend model
                 const status = receipt.type === 0 ? 1 : 2;
                 
-                // For DMs, the store key is the other user (readerId). For groups, it's the groupId (chatId).
-                const targetChatId = receipt.isGroup ? receipt.chatId : receipt.readerId;
-                useChatStore.getState().updateMessageStatus(targetChatId, receipt.messageId, status);
+                const receiptIsGroup = receipt.isGroup !== undefined ? receipt.isGroup : receipt.is_group;
+                const receiptChatId = receipt.chatId || receipt.chat_id;
+                const receiptReaderId = receipt.readerId || receipt.reader_id;
+                const receiptMessageId = receipt.messageId || receipt.message_id;
+
+                const targetChatId = receiptIsGroup ? receiptChatId : receiptReaderId;
+                useChatStore.getState().updateMessageStatus(targetChatId, receiptMessageId, status);
             } else if (wrapper.content === 'webrtcSignal') {
-                const sig = wrapper.webrtcSignal;
+                const sigRaw = wrapper.webrtcSignal || wrapper.webrtc_signal;
+                const sig = {
+                    type: sigRaw.type,
+                    senderId: sigRaw.senderId || sigRaw.sender_id,
+                    targetId: sigRaw.targetId || sigRaw.target_id,
+                    sdp: sigRaw.sdp,
+                    candidate: sigRaw.candidate,
+                    callId: sigRaw.callId || sigRaw.call_id,
+                    isVideo: sigRaw.isVideo !== undefined ? sigRaw.isVideo : sigRaw.is_video
+                };
                 this.handleWebRTCSignal(sig);
             }
         } catch (err) {
-            console.error('[WS] Failed to decode message', err);
+            console.error('[WS] Failed to process message wrapper', err);
         }
     }
 
@@ -215,17 +271,25 @@ class WebSocketClient {
         if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
 
         try {
-            const receipt = wca_chat.Receipt.create({
+            const receiptData = {
                 messageId: messageId,
                 chatId: String(chatId),
                 readerId: this.userId,
                 type: type, // 0: DELIVERED, 1: READ
                 isGroup: isGroup
-            });
-            const wrapper = wca_chat.ProtocolWrapper.create({
-                receipt: receipt
-            });
-            this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            };
+            if (this.useProtobuf()) {
+                const receipt = wca_chat.Receipt.create(receiptData);
+                const wrapper = wca_chat.ProtocolWrapper.create({
+                    receipt: receipt
+                });
+                this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            } else {
+                const wrapper = {
+                    receipt: receiptData
+                };
+                this.socket.send(JSON.stringify(wrapper));
+            }
         } catch (err) {
             console.error('[WS] Failed to send receipt:', err);
         }
@@ -279,29 +343,38 @@ class WebSocketClient {
                 targetId: String(targetId),
                 isGroupMessage: isGroup,
                 type: type,
-                payload: new TextEncoder().encode(encryptedContent),
+                payload: this.useProtobuf() ? new TextEncoder().encode(encryptedContent) : encryptedContent,
                 sentAt: Date.now(),
                 timerSeconds: timerSeconds,
                 replyToMessageId: replyToMessageId
             };
 
             if (attachment) {
-                msgData.attachment = wca_chat.ChatMessage.Attachment.create({
+                msgData.attachment = {
                     id: String(attachment.id || ''),
                     name: String(attachment.name || ''),
                     type: String(attachment.type || ''),
                     url: String(attachment.url || ''),
                     size: Number(attachment.size || 0)
-                });
+                };
             }
 
-            const chatMessage = wca_chat.ChatMessage.create(msgData);
-            // ProtocolWrapper uses oneof — just set the chatMessage field directly
-            const wrapper = wca_chat.ProtocolWrapper.create({
-                chatMessage: chatMessage
-            });
-
-            this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            if (this.useProtobuf()) {
+                if (msgData.attachment) {
+                    msgData.attachment = wca_chat.ChatMessage.Attachment.create(msgData.attachment);
+                }
+                const chatMessage = wca_chat.ChatMessage.create(msgData);
+                // ProtocolWrapper uses oneof — just set the chatMessage field directly
+                const wrapper = wca_chat.ProtocolWrapper.create({
+                    chatMessage: chatMessage
+                });
+                this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            } else {
+                const wrapper = {
+                    chatMessage: msgData
+                };
+                this.socket.send(JSON.stringify(wrapper));
+            }
         } catch (err) {
             console.error('Failed to send message:', err);
         }
@@ -309,14 +382,24 @@ class WebSocketClient {
 
     subscribeGroup(groupId) {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            const command = wca_chat.Command.create({
-                type: wca_chat.Command.CommandType.SUBSCRIBE_GROUP,
-                targetId: String(groupId)
-            });
-            const wrapper = wca_chat.ProtocolWrapper.create({
-                command: command
-            });
-            this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            if (this.useProtobuf()) {
+                const command = wca_chat.Command.create({
+                    type: wca_chat.Command.CommandType.SUBSCRIBE_GROUP,
+                    targetId: String(groupId)
+                });
+                const wrapper = wca_chat.ProtocolWrapper.create({
+                    command: command
+                });
+                this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            } else {
+                const wrapper = {
+                    command: {
+                        type: 0, // SUBSCRIBE_GROUP
+                        targetId: String(groupId)
+                    }
+                };
+                this.socket.send(JSON.stringify(wrapper));
+            }
         }
     }
 
@@ -409,7 +492,7 @@ class WebSocketClient {
                 'CALL_HANGUP': 5
             };
 
-            const webrtcSignal = wca_chat.WebRTCSignal.create({
+            const sigData = {
                 type: typeof sig.type === 'string' ? typeMap[sig.type] : sig.type,
                 senderId: sig.senderId,
                 targetId: sig.targetId,
@@ -417,13 +500,20 @@ class WebSocketClient {
                 candidate: sig.candidate || '',
                 callId: sig.callId,
                 isVideo: sig.isVideo || false
-            });
+            };
 
-            const wrapper = wca_chat.ProtocolWrapper.create({
-                webrtcSignal: webrtcSignal
-            });
-
-            this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            if (this.useProtobuf()) {
+                const webrtcSignal = wca_chat.WebRTCSignal.create(sigData);
+                const wrapper = wca_chat.ProtocolWrapper.create({
+                    webrtcSignal: webrtcSignal
+                });
+                this.socket.send(wca_chat.ProtocolWrapper.encode(wrapper).finish());
+            } else {
+                const wrapper = {
+                    webrtcSignal: sigData
+                };
+                this.socket.send(JSON.stringify(wrapper));
+            }
         } catch (err) {
             console.error('[WS] Failed to send WebRTC signal:', err);
         }

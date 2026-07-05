@@ -27,7 +27,22 @@ fi
 # 3. Ensure Daphne is installed
 pip install -q daphne
 
-# 4. Ensure USE_HTTPS = True is set in core/settings.py
+# 4. Apply any pending database migrations
+echo "⚙️  Applying database migrations..."
+python manage.py migrate
+
+# 5. Compile backend protobuf schema using python grpc_tools or system protoc
+if python -c "import grpc_tools.protoc" &> /dev/null; then
+    echo "⚙️  Compiling backend Protobuf schemas using grpcio-tools..."
+    (cd chat/protocols && python -m grpc_tools.protoc -I. --python_out=. messages.proto)
+elif command -v protoc &> /dev/null; then
+    echo "⚙️  Compiling backend Protobuf schemas using system protoc..."
+    (cd chat/protocols && protoc -I. --python_out=. messages.proto)
+else
+    echo "⚠️  python grpc_tools and protoc not found, skipping backend protobuf recompilation."
+fi
+
+# 6. Ensure USE_HTTPS = True is set in core/settings.py
 
 echo "🚀 Starting Daphne with SSL on https://localhost:8000"
 echo "   (WebSocket available at wss://localhost:8000/ws/)"

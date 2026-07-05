@@ -56,3 +56,9 @@ Example: `MODULES: SELFDESTRUCT, EMERGENCY_BROADCAST, READ_RECEIPT, VOICE, E2E, 
 - **Function**: Peer-to-peer real-time audio and video streams using WebRTC and WebSocket signaling.
 - **Control**: Gated by the `VIDEOCALL` identifier. Hides phone/camera call buttons if unlicensed; backend drops signaling packets.
 
+### **PROTOBUF: Optimized WebSocket Binary Serialization**
+- **Function**: Enables binary-level WebSocket serialization using Protocol Buffers instead of plaintext JSON format.
+- **Performance**: Dramatically reduces bandwidth usage, accelerates serialization/deserialization times, and improves app response speed on mobile networks.
+- **Fallback**: Automatically gates dynamic serialization mode. When the `PROTOBUF` module is unlicensed or missing, both the frontend and backend fall back to transmitting structured JSON text over the WebSockets.
+
+

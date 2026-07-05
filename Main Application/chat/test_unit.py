@@ -36,3 +36,64 @@ def test_jwt_expiration():
     # It should be around 15 minutes
     assert diff.total_seconds() > 14 * 60
     assert diff.total_seconds() < 16 * 60
+
+from chat.consumers import DictObjectWrapper
+
+def test_dict_object_wrapper_attributes():
+    # Test snake_case and camelCase mapping
+    data = {
+        'senderId': 'user123',
+        'target_id': 'group456',
+        'payload': 'hello world',
+        'isGroupMessage': True,
+        'chatMessage': {
+            'messageId': 'msg999',
+            'type': 1
+        }
+    }
+    wrapper = DictObjectWrapper(data)
+    
+    # Test attribute mapping and retrieval
+    assert wrapper.sender_id == 'user123'
+    assert wrapper.target_id == 'group456'
+    assert wrapper.is_group_message is True
+    
+    # Test payload encoding
+    assert wrapper.payload == b'hello world'
+    
+    # Test nested DictObjectWrapper
+    assert isinstance(wrapper.chat_message, DictObjectWrapper)
+    assert wrapper.chat_message.message_id == 'msg999'
+    assert wrapper.chat_message.type == 1
+    
+    # Test non-existent attributes defaults
+    assert wrapper.size == 0
+    assert wrapper.is_video is False
+    assert wrapper.non_existent_field is None
+
+def test_dict_object_wrapper_has_field():
+    data = {
+        'chatMessage': {'messageId': 'abc'},
+        'presence': None
+    }
+    wrapper = DictObjectWrapper(data)
+    
+    assert wrapper.HasField('chat_message') is True
+    assert wrapper.HasField('presence') is False
+    assert wrapper.HasField('receipt') is False
+
+def test_dict_object_wrapper_setattr():
+    data = {
+        'senderId': 'user123',
+        'timer_seconds': 10
+    }
+    wrapper = DictObjectWrapper(data)
+    
+    wrapper.sender_id = 'new_user'
+    wrapper.timer_seconds = 20
+    wrapper.new_field = 'value'
+    
+    assert data['senderId'] == 'new_user'
+    assert data['timer_seconds'] == 20
+    assert data['new_field'] == 'value'
+

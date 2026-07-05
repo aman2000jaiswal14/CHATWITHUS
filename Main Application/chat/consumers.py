@@ -9,6 +9,132 @@ import time
 import re
 
 
+class DictObjectWrapper:
+    def __init__(self, data):
+        self._data = data if isinstance(data, dict) else {}
+        self._cache = {}
+
+    def __getattr__(self, name):
+        mapping = {
+            'sender_id': ['sender_id', 'senderId'],
+            'target_id': ['target_id', 'targetId'],
+            'is_group_message': ['is_group_message', 'isGroupMessage'],
+            'timer_seconds': ['timer_seconds', 'timerSeconds'],
+            'reply_to_message_id': ['reply_to_message_id', 'replyToMessageId'],
+            'received_at': ['received_at', 'receivedAt'],
+            'is_group': ['is_group', 'isGroup'],
+            'chat_id': ['chat_id', 'chatId'],
+            'reader_id': ['reader_id', 'readerId'],
+            'message_id': ['message_id', 'messageId'],
+            'sdp': ['sdp'],
+            'candidate': ['candidate'],
+            'call_id': ['call_id', 'callId'],
+            'is_video': ['is_video', 'isVideo'],
+            'url': ['url'],
+            'size': ['size'],
+            'name': ['name'],
+            'id': ['id'],
+            'type': ['type'],
+        }
+        
+        keys = mapping.get(name, [name])
+        val = None
+        found = False
+        for k in keys:
+            if k in self._data:
+                val = self._data[k]
+                found = True
+                break
+
+        if not found:
+            camel = re.sub(r'_([a-z])', lambda match: match.group(1).upper(), name)
+            if camel in self._data:
+                val = self._data[camel]
+                found = True
+
+        if not found:
+            snake = re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+            if snake in self._data:
+                val = self._data[snake]
+                found = True
+
+        if not found:
+            if name in ['type', 'timer_seconds', 'size']:
+                return 0
+            if name in ['is_group_message', 'is_group', 'is_video']:
+                return False
+            return None
+
+        if name == 'payload':
+            if isinstance(val, str):
+                return val.encode('utf-8')
+            elif isinstance(val, bytes):
+                return val
+            elif isinstance(val, bytearray):
+                return bytes(val)
+            return b''
+
+        if isinstance(val, dict):
+            if name not in self._cache:
+                self._cache[name] = DictObjectWrapper(val)
+            return self._cache[name]
+
+        return val
+
+    def __setattr__(self, name, value):
+        if name in ('_data', '_cache'):
+            super().__setattr__(name, value)
+            return
+
+        mapping = {
+            'sender_id': ['sender_id', 'senderId'],
+            'target_id': ['target_id', 'targetId'],
+            'is_group_message': ['is_group_message', 'isGroupMessage'],
+            'timer_seconds': ['timer_seconds', 'timerSeconds'],
+            'reply_to_message_id': ['reply_to_message_id', 'replyToMessageId'],
+            'received_at': ['received_at', 'receivedAt'],
+            'is_group': ['is_group', 'isGroup'],
+            'chat_id': ['chat_id', 'chatId'],
+            'reader_id': ['reader_id', 'readerId'],
+            'message_id': ['message_id', 'messageId'],
+            'sdp': ['sdp'],
+            'candidate': ['candidate'],
+            'call_id': ['call_id', 'callId'],
+            'is_video': ['is_video', 'isVideo'],
+            'url': ['url'],
+            'size': ['size'],
+            'name': ['name'],
+            'id': ['id'],
+            'type': ['type'],
+        }
+
+        keys = mapping.get(name, [name])
+        target_key = keys[0]
+        for k in keys:
+            if k in self._data:
+                target_key = k
+                break
+
+        self._data[target_key] = value
+
+    def HasField(self, field_name):
+        mapping = {
+            'chat_message': ['chat_message', 'chatMessage'],
+            'presence': ['presence'],
+            'command': ['command'],
+            'receipt': ['receipt'],
+            'webrtc_signal': ['webrtc_signal', 'webrtcSignal'],
+            'attachment': ['attachment'],
+        }
+        keys = mapping.get(field_name, [field_name])
+        for k in keys:
+            if k in self._data and self._data[k] is not None:
+                return True
+        return False
+
+
+
+
 class ChatConsumer(AsyncWebsocketConsumer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -81,192 +207,313 @@ class ChatConsumer(AsyncWebsocketConsumer):
         for group in self.joined_groups:
             await self.channel_layer.group_discard(group, self.channel_name)
 
+    def has_protobuf(self):
+        modules = self.license_info.get('MODULES', '') if self.license_info else ''
+        return 'PROTOBUF' in modules
+
     async def receive(self, text_data=None, bytes_data=None):
+        wrapper = None
         if bytes_data:
-            wrapper = messages_pb2.ProtocolWrapper()
+            pb_wrapper = messages_pb2.ProtocolWrapper()
             try:
-                wrapper.ParseFromString(bytes_data)
-
-                if wrapper.HasField('chat_message'):
-                    message = wrapper.chat_message
-                    
-                    # Rate limiting: 15 messages per session (user-based)
-                    from .services.rate_limit import SessionRateLimiter
-                    if not SessionRateLimiter.is_allowed(f"ws_session_{self.user_id}", limit=15):
-                        print(f"[RATE LIMIT] User {self.user_id} exceeded session limit.")
-                        # Optionally send a system message back to notify the user
-                        return
-
-                    # Prevent sender impersonation IDOR
-                    if message.sender_id != self.user_id:
-                        print(f"[AUTH WARN] Enforcing sender_id to {self.user_id} (attempted {message.sender_id})")
-                        message.sender_id = self.user_id
-
-                    # License check for Reply feature
-                    if message.reply_to_message_id:
-                        modules = self.license_info.get('MODULES', '') if self.license_info else ''
-                        if 'REPLY' not in modules:
-                            print(f"[LICENSE ERROR] User {self.user_id} attempted to reply without REPLY module license")
-                            return
-
-                    # Check if this is an emergency broadcast BEFORE group membership check
-                    is_emergency = message.target_id.upper() == "EMERGENCY"
-
-                    if is_emergency:
-                        # Validate Commander role for Broadcasts
-                        user_role = await self.get_user_role(self.user_id)
-                        if user_role.lower() not in ["commander", "admin"]:
-                            print(f"[AUTH ERROR] User {self.user_id} attempted to broadcast without Commander/Admin role (has {user_role})")
-                            return
-                        
-                        # Normalize target_id and force is_group_message for consistency
-                        message.target_id = "EMERGENCY"
-                        message.is_group_message = True
-                    elif message.is_group_message:
-                        # Prevent unauthorized group message injection IDOR
-                        is_member = await self.is_user_in_group(self.user_id, message.target_id)
-                        if not is_member:
-                            print(f"[AUTH ERROR] User {self.user_id} attempted to message group {message.target_id} without membership")
-                            return
-
-                    # Skip Allowed Characters filtering on the backend because 
-                    # message.content is an End-To-End Encrypted Base64 ciphertext!
-                    # The strict constraints are enforced on the React Client locally before encryption.
-
-                    message.received_at = int(time.time() * 1000)
-
-                    try:
-                        await self.message_handler.handle(message)
-                    except Exception as e:
-                        print(f"[HANDLER ERROR] {e}")
-
-                    # Save message to database for history
-                    await self.save_message_to_db(message)
-
-                    updated_bytes = wrapper.SerializeToString()
-                    encoded = base64.b64encode(updated_bytes).decode('ascii')
-
-                    if is_emergency:
-                        # Broadcast to all connected users
-                        await self.channel_layer.group_send(
-                            'all_users',
-                            {'type': 'chat.message', 'data': encoded}
-                        )
-                    elif message.is_group_message:
-                        target_group = f'group_{message.target_id}'
-                        await self.channel_layer.group_send(
-                            target_group,
-                            {'type': 'chat.message', 'data': encoded}
-                        )
-                    else:
-                        target_group = f'user_{message.target_id}'
-                        await self.channel_layer.group_send(
-                            target_group,
-                            {'type': 'chat.message', 'data': encoded}
-                        )
-                        await self.channel_layer.group_send(
-                            self.personal_group,
-                            {'type': 'chat.message', 'data': encoded}
-                        )
-                        # Auto-create unverified bookmark for recipient
-                        await self.create_unverified_bookmark(
-                            sender_username=message.sender_id,
-                            recipient_username=message.target_id
-                        )
-
-                elif wrapper.HasField('command'):
-                    command = wrapper.command
-                    target_group = f'group_{command.target_id}'
-                    if command.type == messages_pb2.Command.SUBSCRIBE_GROUP:
-                        is_member = await self.is_user_in_group(self.user_id, command.target_id)
-                        if is_member:
-                            await self.channel_layer.group_add(target_group, self.channel_name)
-                            self.joined_groups.add(target_group)
-                        else:
-                            print(f"[AUTH ERROR] User {self.user_id} attempted to subscribe to group {command.target_id} without membership")
-                    elif command.type == messages_pb2.Command.UNSUBSCRIBE_GROUP:
-                        await self.channel_layer.group_discard(target_group, self.channel_name)
-                        self.joined_groups.discard(target_group)
-
-                elif wrapper.HasField('receipt'):
-                    # Check license for Read Receipt feature
-                    modules = self.license_info.get('MODULES', '') if self.license_info else ''
-                    if 'READ_RECEIPT' not in modules:
-                        return
-
-                    receipt = wrapper.receipt
-                    status_changed, new_status, sender_username = await self.update_message_receipt_in_db(receipt)
-
-                    if status_changed:
-                        if receipt.is_group:
-                            # Construct an aggregated receipt to update the sender's UI
-                            new_wrapper = messages_pb2.ProtocolWrapper()
-                            new_wrapper.receipt.CopyFrom(receipt)
-                            new_wrapper.receipt.type = 0 if new_status == 1 else 1 # DELIVERED=0, READ=1
-                            encoded = base64.b64encode(new_wrapper.SerializeToString()).decode('ascii')
-                            
-                            # Only notify the original sender that the overall group message status changed
-                            await self.channel_layer.group_send(
-                                f'user_{sender_username}',
-                                {'type': 'chat.message', 'data': encoded}
-                            )
-                        else:
-                            receipt_bytes = wrapper.SerializeToString()
-                            encoded = base64.b64encode(receipt_bytes).decode('ascii')
-                            target_group = f'user_{receipt.chat_id}'
-                            await self.channel_layer.group_send(
-                                target_group,
-                                {'type': 'chat.message', 'data': encoded}
-                            )
-
-                elif wrapper.HasField('presence'):
-                    # Broadcast presence to all contacts and groups
-                    presence_bytes = wrapper.SerializeToString()
-                    encoded = base64.b64encode(presence_bytes).decode('ascii')
-
-                    # Broadcast to all users who have bookmarked this user
-                    contact_ids = await self.get_contact_user_ids(self.user_id)
-                    for uid in contact_ids:
-                        await self.channel_layer.group_send(
-                            f'user_{uid}',
-                            {'type': 'chat.message', 'data': encoded}
-                        )
-
-                elif wrapper.HasField('webrtc_signal'):
-                    # Check license for VIDEOCALL feature
-                    modules = self.license_info.get('MODULES', '') if self.license_info else ''
-                    if 'VIDEOCALL' not in modules:
-                        print(f"[LICENSE ERROR] User {self.user_id} attempted WebRTC signaling without VIDEOCALL license")
-                        return
-
-                    webrtc_signal = wrapper.webrtc_signal
-                    
-                    # Prevent sender impersonation IDOR
-                    if webrtc_signal.sender_id != self.user_id:
-                        print(f"[AUTH WARN] Enforcing webrtc_signal.sender_id to {self.user_id} (attempted {webrtc_signal.sender_id})")
-                        webrtc_signal.sender_id = self.user_id
-
-                    # Route the signal to the target user's personal channel group
-                    target_group = f'user_{webrtc_signal.target_id}'
-                    webrtc_bytes = wrapper.SerializeToString()
-                    encoded = base64.b64encode(webrtc_bytes).decode('ascii')
-                    
-                    await self.channel_layer.group_send(
-                        target_group,
-                        {'type': 'chat.message', 'data': encoded}
-                    )
-
+                pb_wrapper.ParseFromString(bytes_data)
+                wrapper = pb_wrapper
             except Exception as e:
                 print(f"[PROTOBUF ERROR] {e}")
-                import traceback
-                traceback.print_exc()
+                return
+        elif text_data:
+            try:
+                data = json.loads(text_data)
+                wrapper = DictObjectWrapper(data)
+            except Exception as e:
+                print(f"[JSON ERROR] {e}")
+                return
+        else:
+            return
+
+        try:
+            if wrapper.HasField('chat_message'):
+                message = wrapper.chat_message
+                
+                # Rate limiting: 15 messages per session (user-based)
+                from .services.rate_limit import SessionRateLimiter
+                if not SessionRateLimiter.is_allowed(f"ws_session_{self.user_id}", limit=15):
+                    print(f"[RATE LIMIT] User {self.user_id} exceeded session limit.")
+                    return
+
+                # Prevent sender impersonation IDOR
+                if message.sender_id != self.user_id:
+                    print(f"[AUTH WARN] Enforcing sender_id to {self.user_id} (attempted {message.sender_id})")
+                    message.sender_id = self.user_id
+
+                # License check for Reply feature
+                if message.reply_to_message_id:
+                    modules = self.license_info.get('MODULES', '') if self.license_info else ''
+                    if 'REPLY' not in modules:
+                        print(f"[LICENSE ERROR] User {self.user_id} attempted to reply without REPLY module license")
+                        return
+
+                # Check if this is an emergency broadcast BEFORE group membership check
+                is_emergency = message.target_id.upper() == "EMERGENCY"
+
+                if is_emergency:
+                    # Validate Commander role for Broadcasts
+                    user_role = await self.get_user_role(self.user_id)
+                    if user_role.lower() not in ["commander", "admin"]:
+                        print(f"[AUTH ERROR] User {self.user_id} attempted to broadcast without Commander/Admin role (has {user_role})")
+                        return
+                    
+                    # Normalize target_id and force is_group_message for consistency
+                    message.target_id = "EMERGENCY"
+                    message.is_group_message = True
+                elif message.is_group_message:
+                    # Prevent unauthorized group message injection IDOR
+                    is_member = await self.is_user_in_group(self.user_id, message.target_id)
+                    if not is_member:
+                        print(f"[AUTH ERROR] User {self.user_id} attempted to message group {message.target_id} without membership")
+                        return
+
+                message.received_at = int(time.time() * 1000)
+
+                try:
+                    await self.message_handler.handle(message)
+                except Exception as e:
+                    print(f"[HANDLER ERROR] {e}")
+
+                # Save message to database for history
+                await self.save_message_to_db(message)
+
+                if self.has_protobuf():
+                    if isinstance(wrapper, DictObjectWrapper):
+                        # Ensure we convert back to protobuf bytes
+                        pb_wrap = messages_pb2.ProtocolWrapper()
+                        pb_wrap.chat_message.message_id = message.message_id
+                        pb_wrap.chat_message.sender_id = message.sender_id
+                        pb_wrap.chat_message.target_id = message.target_id
+                        pb_wrap.chat_message.is_group_message = message.is_group_message
+                        # Use exact bytes payload
+                        payload_val = message.payload
+                        if isinstance(payload_val, str):
+                            pb_wrap.chat_message.payload = payload_val.encode('utf-8')
+                        elif isinstance(payload_val, bytes):
+                            pb_wrap.chat_message.payload = payload_val
+                        pb_wrap.chat_message.type = message.type
+                        pb_wrap.chat_message.received_at = message.received_at
+                        if message.reply_to_message_id:
+                            pb_wrap.chat_message.reply_to_message_id = message.reply_to_message_id
+                        if message.timer_seconds:
+                            pb_wrap.chat_message.timer_seconds = message.timer_seconds
+                        if message.HasField('attachment'):
+                            pb_wrap.chat_message.attachment.id = message.attachment.id
+                            pb_wrap.chat_message.attachment.name = message.attachment.name
+                            pb_wrap.chat_message.attachment.url = message.attachment.url
+                            pb_wrap.chat_message.attachment.type = message.attachment.type
+                            pb_wrap.chat_message.attachment.size = message.attachment.size
+                        updated_bytes = pb_wrap.SerializeToString()
+                    else:
+                        updated_bytes = wrapper.SerializeToString()
+                    encoded = base64.b64encode(updated_bytes).decode('ascii')
+                    is_protobuf = True
+                else:
+                    encoded = json.dumps(wrapper._data)
+                    is_protobuf = False
+
+                if is_emergency:
+                    # Broadcast to all connected users
+                    await self.channel_layer.group_send(
+                        'all_users',
+                        {'type': 'chat.message', 'data': encoded, 'is_protobuf': is_protobuf}
+                    )
+                elif message.is_group_message:
+                    target_group = f'group_{message.target_id}'
+                    await self.channel_layer.group_send(
+                        target_group,
+                        {'type': 'chat.message', 'data': encoded, 'is_protobuf': is_protobuf}
+                    )
+                else:
+                    target_group = f'user_{message.target_id}'
+                    await self.channel_layer.group_send(
+                        target_group,
+                        {'type': 'chat.message', 'data': encoded, 'is_protobuf': is_protobuf}
+                    )
+                    await self.channel_layer.group_send(
+                        self.personal_group,
+                        {'type': 'chat.message', 'data': encoded, 'is_protobuf': is_protobuf}
+                    )
+                    # Auto-create unverified bookmark for recipient
+                    await self.create_unverified_bookmark(
+                        sender_username=message.sender_id,
+                        recipient_username=message.target_id
+                    )
+
+            elif wrapper.HasField('command'):
+                command = wrapper.command
+                target_group = f'group_{command.target_id}'
+                if command.type == messages_pb2.Command.SUBSCRIBE_GROUP:
+                    is_member = await self.is_user_in_group(self.user_id, command.target_id)
+                    if is_member:
+                        await self.channel_layer.group_add(target_group, self.channel_name)
+                        self.joined_groups.add(target_group)
+                    else:
+                        print(f"[AUTH ERROR] User {self.user_id} attempted to subscribe to group {command.target_id} without membership")
+                elif command.type == messages_pb2.Command.UNSUBSCRIBE_GROUP:
+                    await self.channel_layer.group_discard(target_group, self.channel_name)
+                    self.joined_groups.discard(target_group)
+
+            elif wrapper.HasField('receipt'):
+                # Check license for Read Receipt feature
+                modules = self.license_info.get('MODULES', '') if self.license_info else ''
+                if 'READ_RECEIPT' not in modules:
+                    return
+
+                receipt = wrapper.receipt
+                status_changed, new_status, sender_username = await self.update_message_receipt_in_db(receipt)
+
+                if status_changed:
+                    if receipt.is_group:
+                        if self.has_protobuf():
+                            new_wrapper = messages_pb2.ProtocolWrapper()
+                            new_wrapper.receipt.message_id = receipt.message_id
+                            new_wrapper.receipt.chat_id = receipt.chat_id
+                            new_wrapper.receipt.reader_id = receipt.reader_id
+                            new_wrapper.receipt.type = 0 if new_status == 1 else 1
+                            new_wrapper.receipt.is_group = receipt.is_group
+                            encoded = base64.b64encode(new_wrapper.SerializeToString()).decode('ascii')
+                            is_protobuf = True
+                        else:
+                            wrapper_data = {
+                                'receipt': {
+                                    'messageId': receipt.message_id,
+                                    'chatId': receipt.chat_id,
+                                    'readerId': receipt.reader_id,
+                                    'type': 0 if new_status == 1 else 1,
+                                    'isGroup': receipt.is_group
+                                }
+                            }
+                            encoded = json.dumps(wrapper_data)
+                            is_protobuf = False
+
+                        await self.channel_layer.group_send(
+                            f'user_{sender_username}',
+                            {
+                                'type': 'chat.message',
+                                'data': encoded,
+                                'is_protobuf': is_protobuf
+                            }
+                        )
+                    else:
+                        if self.has_protobuf():
+                            if isinstance(wrapper, DictObjectWrapper):
+                                pb_wrap = messages_pb2.ProtocolWrapper()
+                                pb_wrap.receipt.message_id = receipt.message_id
+                                pb_wrap.receipt.chat_id = receipt.chat_id
+                                pb_wrap.receipt.reader_id = receipt.reader_id
+                                pb_wrap.receipt.type = receipt.type
+                                pb_wrap.receipt.is_group = receipt.is_group
+                                encoded = base64.b64encode(pb_wrap.SerializeToString()).decode('ascii')
+                            else:
+                                encoded = base64.b64encode(wrapper.SerializeToString()).decode('ascii')
+                            is_protobuf = True
+                        else:
+                            encoded = json.dumps(wrapper._data)
+                            is_protobuf = False
+
+                        target_group = f'user_{receipt.chat_id}'
+                        await self.channel_layer.group_send(
+                            target_group,
+                            {
+                                'type': 'chat.message',
+                                'data': encoded,
+                                'is_protobuf': is_protobuf
+                            }
+                        )
+
+            elif wrapper.HasField('presence'):
+                if self.has_protobuf():
+                    if isinstance(wrapper, DictObjectWrapper):
+                        pb_wrap = messages_pb2.ProtocolWrapper()
+                        pb_wrap.presence.user_id = wrapper.presence.user_id
+                        pb_wrap.presence.status = wrapper.presence.status
+                        pb_wrap.presence.is_online = wrapper.presence.is_online
+                        encoded = base64.b64encode(pb_wrap.SerializeToString()).decode('ascii')
+                    else:
+                        encoded = base64.b64encode(wrapper.SerializeToString()).decode('ascii')
+                    is_protobuf = True
+                else:
+                    encoded = json.dumps(wrapper._data)
+                    is_protobuf = False
+
+                # Broadcast to all users who have bookmarked this user
+                contact_ids = await self.get_contact_user_ids(self.user_id)
+                for uid in contact_ids:
+                    await self.channel_layer.group_send(
+                        f'user_{uid}',
+                        {
+                            'type': 'chat.message',
+                            'data': encoded,
+                            'is_protobuf': is_protobuf
+                        }
+                    )
+
+            elif wrapper.HasField('webrtc_signal'):
+                # Check license for VIDEOCALL feature
+                modules = self.license_info.get('MODULES', '') if self.license_info else ''
+                if 'VIDEOCALL' not in modules:
+                    print(f"[LICENSE ERROR] User {self.user_id} attempted WebRTC signaling without VIDEOCALL license")
+                    return
+
+                webrtc_signal = wrapper.webrtc_signal
+                
+                # Prevent sender impersonation IDOR
+                if webrtc_signal.sender_id != self.user_id:
+                    print(f"[AUTH WARN] Enforcing webrtc_signal.sender_id to {self.user_id} (attempted {webrtc_signal.sender_id})")
+                    webrtc_signal.sender_id = self.user_id
+
+                # Route the signal to the target user's personal channel group
+                target_group = f'user_{webrtc_signal.target_id}'
+                
+                if self.has_protobuf():
+                    if isinstance(wrapper, DictObjectWrapper):
+                        pb_wrap = messages_pb2.ProtocolWrapper()
+                        pb_wrap.webrtc_signal.type = webrtc_signal.type
+                        pb_wrap.webrtc_signal.sender_id = webrtc_signal.sender_id
+                        pb_wrap.webrtc_signal.target_id = webrtc_signal.target_id
+                        pb_wrap.webrtc_signal.sdp = webrtc_signal.sdp
+                        pb_wrap.webrtc_signal.candidate = webrtc_signal.candidate
+                        pb_wrap.webrtc_signal.call_id = webrtc_signal.call_id
+                        pb_wrap.webrtc_signal.is_video = webrtc_signal.is_video
+                        encoded = base64.b64encode(pb_wrap.SerializeToString()).decode('ascii')
+                    else:
+                        encoded = base64.b64encode(wrapper.SerializeToString()).decode('ascii')
+                    is_protobuf = True
+                else:
+                    encoded = json.dumps(wrapper._data)
+                    is_protobuf = False
+                
+                await self.channel_layer.group_send(
+                    target_group,
+                    {
+                        'type': 'chat.message',
+                        'data': encoded,
+                        'is_protobuf': is_protobuf
+                    }
+                )
+
+        except Exception as e:
+            print(f"[RECEIVE PROCESS ERROR] {e}")
+            import traceback
+            traceback.print_exc()
 
     # --- Channel layer handlers ---
 
     async def chat_message(self, event):
-        """Deliver a protobuf chat message to the client."""
-        raw_bytes = base64.b64decode(event['data'])
-        await self.send(bytes_data=raw_bytes)
+        """Deliver a chat message to the client (Protobuf or JSON)."""
+        is_protobuf = event.get('is_protobuf', True)
+        if is_protobuf:
+            raw_bytes = base64.b64decode(event['data'])
+            await self.send(bytes_data=raw_bytes)
+        else:
+            await self.send(text_data=event['data'])
 
     async def group_refresh(self, event):
         """Signal clients to re-fetch their group list."""
