@@ -16,20 +16,42 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+import environ
+
+# Initialize environ
+env = environ.Env(
+    PROD=(bool, False),
+    SECRET_KEY=(str, 'django-insecure-(5)l+imw=lio-m6&zx6c(9-5v3g3o8ec8kxdfjm1s06xl=nrc6'),
+)
+
+# Read .env file if it exists
+env_file = BASE_DIR / '.env'
+if env_file.exists():
+    environ.Env.read_env(env_file)
+
+# Read production flag
+PROD = env('PROD')
+
+# Set defaults based on PROD mode
+default_debug = not PROD
+default_use_https = PROD
+default_cors_allow_all = not PROD
+default_ssl_redirect = PROD
+
 # HTTPS configuration flag (Switch to False for HTTP/WS)
-USE_HTTPS = True
+USE_HTTPS = env.bool('USE_HTTPS', default=default_use_https)
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-(5)l+imw=lio-m6&zx6c(9-5v3g3o8ec8kxdfjm1s06xl=nrc6'
+SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool('DEBUG', default=default_debug)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
 
 
 # Application definition
@@ -145,7 +167,18 @@ LOGIN_URL = 'login'
 
 AUTH_USER_MODEL = 'accounts.User'
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=default_cors_allow_all)
+if not CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
+
+# Secure Cookie and HSTS Settings for Production
+if PROD:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=default_ssl_redirect)
+    SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=31536000)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
