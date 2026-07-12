@@ -17,7 +17,7 @@ export const useChatStore = create((set, get) => ({
     isMuted: true,
     isSelfDestructEnabled: false,
     isEmergencyAlertActive: false,
-    currentUser: (window.CHAT_CONFIG || {}).USER_ID || 'anonymous',
+    currentUser: (window.CHAT_F_CONFIG || {}).USER_ID || 'anonymous',
     isWidgetOpen: false,
     incomingCall: null,        // { senderId, callId, isVideo, sdp }
     outgoingCall: null,        // { targetId, callId, isVideo }

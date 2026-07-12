@@ -4,7 +4,7 @@ import { User, Shield, Briefcase, UserCircle } from 'lucide-react';
 import { encryptionService } from '../../services/EncryptionService';
 
 const Register = () => {
-    const config = window.CHAT_CONFIG || {};
+    const config = window.CHAT_F_CONFIG || {};
     const [formData, setFormData] = useState({
         username: config.USER_ID || '',
         name: '',

@@ -3,6 +3,7 @@
     if (configElement) {
         try {
             window.CHAT_CONFIG = JSON.parse(configElement.textContent);
+            window.CHAT_F_CONFIG = window.CHAT_CONFIG;
         } catch (e) {
             console.error('Failed to parse chat config:', e);
         }

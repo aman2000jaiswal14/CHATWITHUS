@@ -1,83 +1,48 @@
 /**
  * EncryptionService for CHAT WITH US.
  * Uses Web Crypto API to provide AES-256-GCM encryption/decryption.
- * This provides true End-to-End Encryption (E2EE) using ECDH for DMs.
+ * 
+ * Encryption model:
+ *   - Data is encrypted at rest (stored as ciphertext in the DB)
+ *   - Data is encrypted in transit (ciphertext travels over WebSocket/HTTPS)
+ *   - Keys are derived deterministically via PBKDF2 from conversation identity
+ *     (sorted usernames for DMs, group ID for groups) so that any authenticated
+ *     session on any browser/device can always decrypt all messages.
  */
 
-import keyStorage from './KeyStorage';
-import { uploadPublicKey, fetchPublicKey } from './api';
 import { useChatStore } from '../store/useChatStore';
 
 const STATIC_SECRET_FOUNDATION = "CHATWITHUS_V1_SECRET_KEY_FOUNDATION";
 
 class EncryptionService {
     constructor() {
-        this._groupKeys = {}; // Cached group keys
-        this._sharedKeys = {}; // Cached derived ECDH shared keys for partner usernames
-        this._myPrivateKey = null;
-        this._myPublicKey = null;
-        this._initializationPromise = null;
+        this._keyCache = {}; // Cached derived AES keys (both DM and group)
     }
 
+    /**
+     * Pre-warm key derivation. Called early in the app lifecycle.
+     */
     async preDeriveKey(userId) {
-        const uid = userId || window.CHAT_CONFIG?.USER_ID || useChatStore.getState().currentUser;
-        if (!uid || uid === 'anonymous') return;
-        
-        // Trigger initialization in background - don't await in the caller
-        this.initialize(uid).catch(e => console.error("Warmup E2EE initialization failed:", e));
+        // No-op warmup — keys are derived lazily and cached on first use.
     }
 
+    /**
+     * Initialize the encryption service. With deterministic keys,
+     * there is no keypair to generate or upload — this is a no-op kept
+     * for API compatibility with callers that still call initialize().
+     */
     async initialize(userId) {
-        if (!userId || userId === 'anonymous') return;
-        if (this._initializationPromise) return this._initializationPromise;
-
-        this._initializationPromise = (async () => {
-            try {
-                // Try to load keypair from local storage (IndexedDB)
-                let keyPair = await keyStorage.getKeyPair(userId);
-                if (!keyPair) {
-                    // Generate new P-256 ECDH keypair
-                    keyPair = await window.crypto.subtle.generateKey(
-                        {
-                            name: "ECDH",
-                            namedCurve: "P-256"
-                        },
-                        true, // extractable (so we can export public key)
-                        ["deriveKey", "deriveBits"]
-                    );
-                    await keyStorage.saveKeyPair(userId, keyPair);
-
-                    // Export public key to JWK and upload to backend
-                    const jwk = await window.crypto.subtle.exportKey("jwk", keyPair.publicKey);
-                    await uploadPublicKey(JSON.stringify(jwk));
-                } else {
-                    // Self-healing: verify the public key actually exists on the server.
-                    try {
-                        const existingKey = await fetchPublicKey(userId);
-                        if (!existingKey || !existingKey.public_key_json) {
-                            console.log("[E2EE] Public key missing on server. Uploading local key.");
-                            const jwk = await window.crypto.subtle.exportKey("jwk", keyPair.publicKey);
-                            await uploadPublicKey(JSON.stringify(jwk));
-                        }
-                    } catch (err) {
-                        console.warn("[E2EE] Could not verify public key presence on server:", err);
-                    }
-                }
-
-                this._myPrivateKey = keyPair.privateKey;
-                this._myPublicKey = keyPair.publicKey;
-            } catch (e) {
-                console.error("EncryptionService initialization failed:", e);
-                this._initializationPromise = null; // Allow retry on failure
-            }
-        })();
-
-        return this._initializationPromise;
+        // No-op — deterministic keys need no per-user initialization.
     }
 
+    /**
+     * Derive a deterministic AES-256-GCM key for a group conversation.
+     * Salt = "CHATWITHUS_GROUP_SALT_{groupId}"
+     */
     async _deriveGroupKey(groupId) {
-        if (this._groupKeys[groupId]) return this._groupKeys[groupId];
-        
+        const cacheKey = `group:${groupId}`;
+        if (this._keyCache[cacheKey]) return this._keyCache[cacheKey];
+
         const encoder = new TextEncoder();
         const keyMaterial = await window.crypto.subtle.importKey(
             "raw",
@@ -98,60 +63,48 @@ class EncryptionService {
             false,
             ["encrypt", "decrypt"]
         );
-        this._groupKeys[groupId] = key;
+        this._keyCache[cacheKey] = key;
         return key;
     }
 
+    /**
+     * Derive a deterministic AES-256-GCM key for a DM conversation.
+     * The two usernames are sorted alphabetically so that both parties
+     * always derive the exact same key, regardless of who is sender/receiver.
+     * Salt = "CHATWITHUS_DM_SALT_{userA}_{userB}" (sorted)
+     */
     async _deriveDMKey(partnerUsername, myUserId) {
-        const cacheKey = `${myUserId}:${partnerUsername}`;
-        if (this._sharedKeys[cacheKey]) return this._sharedKeys[cacheKey];
+        // Sort usernames so both sides produce the same salt
+        const sorted = [myUserId.toLowerCase(), partnerUsername.toLowerCase()].sort();
+        const cacheKey = `dm:${sorted[0]}:${sorted[1]}`;
+        if (this._keyCache[cacheKey]) return this._keyCache[cacheKey];
 
-        // Ensure we are initialized
-        await this.initialize(myUserId);
-        if (!this._myPrivateKey) {
-            throw new Error("Cannot derive E2EE key: local private key not initialized");
-        }
-
-        // Fetch partner's public key from server
-        const keyData = await fetchPublicKey(partnerUsername);
-        if (!keyData || !keyData.public_key_json) {
-            throw new Error(`Cannot derive E2EE key: recipient ${partnerUsername} has no public key`);
-        }
-
-        // Import partner's public key (JWK format)
-        const jwk = JSON.parse(keyData.public_key_json);
-        const partnerPublicKey = await window.crypto.subtle.importKey(
-            "jwk",
-            jwk,
-            {
-                name: "ECDH",
-                namedCurve: "P-256"
-            },
-            true,
-            []
+        const encoder = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            "raw",
+            encoder.encode(STATIC_SECRET_FOUNDATION),
+            "PBKDF2",
+            false,
+            ["deriveBits", "deriveKey"]
         );
-
-        // Perform ECDH key derivation to get a symmetric AES-GCM-256 key
-        const derivedKey = await window.crypto.subtle.deriveKey(
+        const key = await window.crypto.subtle.deriveKey(
             {
-                name: "ECDH",
-                public: partnerPublicKey
+                name: "PBKDF2",
+                salt: encoder.encode(`CHATWITHUS_DM_SALT_${sorted[0]}_${sorted[1]}`),
+                iterations: 100000,
+                hash: "SHA-256"
             },
-            this._myPrivateKey,
-            {
-                name: "AES-GCM",
-                length: 256
-            },
+            keyMaterial,
+            { name: "AES-GCM", length: 256 },
             false,
             ["encrypt", "decrypt"]
         );
-
-        this._sharedKeys[cacheKey] = derivedKey;
-        return derivedKey;
+        this._keyCache[cacheKey] = key;
+        return key;
     }
 
     _isE2EEnabled() {
-        return window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('E2E');
+        return window.CHAT_F_VERIFIED_MODULES && window.CHAT_F_VERIFIED_MODULES.includes('E2E');
     }
 
     async encrypt(plaintext, targetId = null, isGroup = null) {
@@ -162,9 +115,10 @@ class EncryptionService {
             const state = useChatStore.getState();
             const actualTarget = targetId || state.activeChatId;
             const actualIsGroup = isGroup !== null ? isGroup : state.isGroupChat;
-            const myUserId = window.CHAT_CONFIG?.USER_ID || state.currentUser;
+            const myUserId = window.CHAT_F_CONFIG?.USER_ID || state.currentUser;
 
             if (!actualTarget) return plaintext;
+            if (actualTarget === 'AI_Assistant') return plaintext;
 
             let key;
             if (actualIsGroup) {
@@ -203,9 +157,10 @@ class EncryptionService {
             const actualIsGroup = isGroup !== null ? isGroup : state.isGroupChat;
             const actualTarget = targetId || state.activeChatId;
             const actualSender = senderId;
-            const myUserId = window.CHAT_CONFIG?.USER_ID || state.currentUser;
+            const myUserId = window.CHAT_F_CONFIG?.USER_ID || state.currentUser;
 
             if (!actualTarget) return ciphertextBase64;
+            if (actualTarget === 'AI_Assistant' || actualSender === 'AI_Assistant') return ciphertextBase64;
 
             let key;
             if (actualIsGroup) {
@@ -234,7 +189,12 @@ class EncryptionService {
 
             return new TextDecoder().decode(decrypted);
         } catch (e) {
-            // If decryption fails, it might be an unencrypted message
+            // Determine if this was genuine ciphertext that we failed to decrypt
+            // (legacy ECDH-era message) vs. plaintext that was never encrypted.
+            const looksLikeCiphertext = /^[A-Za-z0-9+/=]{20,}$/.test(ciphertextBase64.trim());
+            if (looksLikeCiphertext) {
+                return "\u{1F512} This message can\u2019t be decrypted (encrypted with a previous key)";
+            }
             return ciphertextBase64;
         }
     }
@@ -246,9 +206,10 @@ class EncryptionService {
             const state = useChatStore.getState();
             const actualTarget = targetId || state.activeChatId;
             const actualIsGroup = isGroup !== null ? isGroup : state.isGroupChat;
-            const myUserId = window.CHAT_CONFIG?.USER_ID || state.currentUser;
+            const myUserId = window.CHAT_F_CONFIG?.USER_ID || state.currentUser;
 
             if (!actualTarget) return buffer;
+            if (actualTarget === 'AI_Assistant') return buffer;
 
             let key;
             if (actualIsGroup) {
@@ -283,9 +244,10 @@ class EncryptionService {
             const actualIsGroup = isGroup !== null ? isGroup : state.isGroupChat;
             const actualTarget = targetId || state.activeChatId;
             const actualSender = senderId;
-            const myUserId = window.CHAT_CONFIG?.USER_ID || state.currentUser;
+            const myUserId = window.CHAT_F_CONFIG?.USER_ID || state.currentUser;
 
             if (!actualTarget) return buffer;
+            if (actualTarget === 'AI_Assistant' || actualSender === 'AI_Assistant') return buffer;
 
             let key;
             if (actualIsGroup) {
@@ -316,3 +278,4 @@ class EncryptionService {
 
 export const encryptionService = new EncryptionService();
 export default encryptionService;
+

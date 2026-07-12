@@ -109,6 +109,6 @@ if __name__ == "__main__":
         project = sys.argv[5] if len(sys.argv) > 5 else "ChatWithUs"
         version = sys.argv[6] if len(sys.argv) > 6 else "1.0.0"
         desc = sys.argv[7] if len(sys.argv) > 7 else "ChatWithUs Enterprise License"
-        modules = sys.argv[8] if len(sys.argv) > 8 else "REPLY,VOICE,E2E,NOTIFICATIONS,LAZYLOADING,READ_RECEIPT,PROTOBUF"
+        modules = sys.argv[8] if len(sys.argv) > 8 else "REPLY,VOICE,E2E,NOTIFICATIONS,LAZYLOADING,READ_RECEIPT,PROTOBUF,GENERAL_AI,ADVANCE_AI"
         
         generate_license(name, days, ltype, provided, project, version, desc, modules)

@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { wca_chat } from '../protocols/messages';
 import { useChatStore } from '../store/useChatStore';
-import { fetchBookmarks, fetchGroups, fetchStatuses, refreshToken } from './api';
+import { fetchBookmarks, fetchGroups, fetchStatuses, fetchAiStatus, refreshToken } from './api';
 import encryptionService from './EncryptionService';
 
 class WebSocketClient {
@@ -11,6 +11,8 @@ class WebSocketClient {
     userId = '';
     receivedMessages = new Set();
     refreshDebounceTimer = null;
+    _intentionalClose = false;
+    _pagehideHandler = null;
 
     constructor(url, userId) {
         this.url = url;
@@ -29,10 +31,11 @@ class WebSocketClient {
 
     connect() {
         if (this.socket) return;
+        this._intentionalClose = false;
         
         // Dynamically append the current token to the base URL
         const baseUrl = this.url.split('?')[0];
-        const token = window.CHAT_CONFIG?.TOKEN || '';
+        const token = window.CHAT_F_CONFIG?.TOKEN || '';
         const connectionUrl = `${baseUrl}?token=${token}`;
 
         console.log('[WS] Connecting to', connectionUrl);
@@ -54,10 +57,16 @@ class WebSocketClient {
             console.log('[WS] Disconnected, code:', event.code);
             this.socket = null;
             
+            // Don't auto-reconnect if we closed on purpose (logout / page unload)
+            if (this._intentionalClose) {
+                console.log('[WS] Intentional close — skipping reconnect.');
+                return;
+            }
+            
             // If the connection was closed due to authorization failure (code 4003)
             if (event.code === 4003) {
                 console.log('[WS] Authorization failure detected. Clearing token and attempting refresh...');
-                window.CHAT_CONFIG.TOKEN = null;
+                window.CHAT_F_CONFIG.TOKEN = null;
                 try {
                     await refreshToken();
                     console.log('[WS] Token refreshed successfully.');
@@ -68,21 +77,36 @@ class WebSocketClient {
             
             setTimeout(() => this.connect(), 3000);
         };
+
+        // Ensure a clean WebSocket close when the page unloads (logout, navigation, tab close)
+        if (!this._pagehideHandler) {
+            this._pagehideHandler = () => {
+                this.disconnect();
+            };
+            window.addEventListener('pagehide', this._pagehideHandler);
+            window.addEventListener('beforeunload', this._pagehideHandler);
+        }
     }
 
     disconnect() {
+        this._intentionalClose = true;
         if (this.socket) {
-            this.socket.onclose = null; // Prevent auto-reconnect on deliberate disconnect
-            this.socket.close();
+            this.socket.close(1000, 'client_disconnect');
             this.socket = null;
         }
         if (this.refreshDebounceTimer) {
             clearTimeout(this.refreshDebounceTimer);
         }
+        // Clean up page unload listeners
+        if (this._pagehideHandler) {
+            window.removeEventListener('pagehide', this._pagehideHandler);
+            window.removeEventListener('beforeunload', this._pagehideHandler);
+            this._pagehideHandler = null;
+        }
     }
 
     useProtobuf() {
-        return (window.CWU_VERIFIED_MODULES || []).includes('PROTOBUF');
+        return (window.CHAT_F_VERIFIED_MODULES || []).includes('PROTOBUF');
     }
 
     async onmessage(event) {
@@ -201,7 +225,7 @@ class WebSocketClient {
 
                 // Auto-send DELIVERED receipt for messages from others
                 if (String(msg.senderId).toLowerCase() !== String(this.userId).toLowerCase()) {
-                    const isLicensed = (window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT');
+                    const isLicensed = (window.CHAT_F_VERIFIED_MODULES || []).includes('READ_RECEIPT');
                     if (isLicensed) {
                         this.sendMessageReceipt(
                             msg.messageId,
@@ -220,7 +244,7 @@ class WebSocketClient {
                 }
 
                 const isMuted = useChatStore.getState().isMuted;
-                const hasNotifications = (window.CWU_VERIFIED_MODULES || []).includes('NOTIFICATIONS');
+                const hasNotifications = (window.CHAT_F_VERIFIED_MODULES || []).includes('NOTIFICATIONS');
                 if (!isMine && !isMuted && hasNotifications) {
                     this.playNotificationSound();
                 }
@@ -267,7 +291,7 @@ class WebSocketClient {
     }
 
     async sendMessageReceipt(messageId, chatId, isGroup, type) {
-        if (!(window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT')) return;
+        if (!(window.CHAT_F_VERIFIED_MODULES || []).includes('READ_RECEIPT')) return;
         if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
 
         try {
@@ -408,10 +432,13 @@ class WebSocketClient {
         const isMine = String(msg.senderId).toLowerCase() === String(this.userId).toLowerCase();
         if (isMine) return false;
 
+        // System users like AI_Assistant are never in bookmarks — skip refresh for them
+        const senderId = String(msg.senderId).toLowerCase();
+        if (senderId === 'ai_assistant') return false;
+
         if (msg.isGroupMessage) {
             return !state.groups.some(g => String(g.id).toLowerCase() === String(msg.targetId).toLowerCase());
         } else {
-            const senderId = String(msg.senderId).toLowerCase();
             return !state.bookmarks.some(b => b.username.toLowerCase() === senderId) &&
                 !state.unverified.some(b => b.username.toLowerCase() === senderId);
         }
@@ -422,10 +449,11 @@ class WebSocketClient {
         this.refreshDebounceTimer = setTimeout(async () => {
             console.log(`[WS] Refreshing data: ${reason}`);
             try {
-                const [bookmarksData, groupsData, statusData] = await Promise.all([
+                const [bookmarksData, groupsData, statusData, aiStatusData] = await Promise.all([
                     fetchBookmarks(),
                     fetchGroups(),
-                    fetchStatuses()
+                    fetchStatuses(),
+                    window.CHAT_F_VERIFIED_MODULES?.includes('GENERAL_AI') ? fetchAiStatus() : Promise.resolve(null)
                 ]);
 
                 const state = useChatStore.getState();
@@ -439,6 +467,14 @@ class WebSocketClient {
                 Object.entries(statusData.statuses || {}).forEach(([uid, s]) => {
                     state.updatePresence(uid, s);
                 });
+                
+                // Set AI Assistant Presence if we fetched it
+                if (aiStatusData) {
+                    state.updatePresence('AI_Assistant', {
+                        is_online: aiStatusData.is_online,
+                        status: aiStatusData.is_online ? 1 : 0
+                    });
+                }
 
                 // Calculate Unread Counts from fresh data
                 const newUnreads = { ...state.unreadCounts };

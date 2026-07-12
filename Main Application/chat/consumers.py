@@ -136,6 +136,10 @@ class DictObjectWrapper:
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
+    # Class-level tracker: maps user_id → set of channel_names
+    # Shared across all instances in this process.
+    _active_sessions = {}
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.message_handler = MessageHandler()
@@ -191,18 +195,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.joined_groups.add('all_users')
 
         await self.accept()
-        print(f"[WS CONNECTED] user={self.user_id}")
+
+        # Register this session in the class-level tracker
+        if self.user_id not in ChatConsumer._active_sessions:
+            ChatConsumer._active_sessions[self.user_id] = set()
+        ChatConsumer._active_sessions[self.user_id].add(self.channel_name)
+        session_count = len(ChatConsumer._active_sessions[self.user_id])
+        print(f"[WS CONNECTED] user={self.user_id} (sessions: {session_count})")
 
         # Update and broadcast online status
         await self.update_user_online_status(True)
         await self.broadcast_presence(is_connecting=True)
 
     async def disconnect(self, close_code):
-        print(f"[WS DISCONNECTED] user={self.user_id}")
-        
-        # Update and broadcast offline status
-        await self.update_user_online_status(False)
-        await self.broadcast_presence(is_connecting=False)
+        # Unregister this session from the class-level tracker
+        if self.user_id and self.user_id in ChatConsumer._active_sessions:
+            ChatConsumer._active_sessions[self.user_id].discard(self.channel_name)
+            remaining = len(ChatConsumer._active_sessions[self.user_id])
+            if remaining == 0:
+                del ChatConsumer._active_sessions[self.user_id]
+        else:
+            remaining = 0
+
+        print(f"[WS DISCONNECTED] user={self.user_id} (remaining sessions: {remaining})")
+
+        # Only mark offline and broadcast if NO sessions remain for this user
+        if remaining == 0:
+            await self.update_user_online_status(False)
+            await self.broadcast_presence(is_connecting=False)
 
         for group in self.joined_groups:
             await self.channel_layer.group_discard(group, self.channel_name)
@@ -235,9 +255,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if wrapper.HasField('chat_message'):
                 message = wrapper.chat_message
                 
-                # Rate limiting: 15 messages per session (user-based)
+                # Rate limiting (user-based)
                 from .services.rate_limit import SessionRateLimiter
-                if not SessionRateLimiter.is_allowed(f"ws_session_{self.user_id}", limit=15):
+                from django.conf import settings
+                limit = getattr(settings, 'WS_RATE_LIMIT', 10000)
+                if not SessionRateLimiter.is_allowed(f"ws_session_{self.user_id}", limit=limit):
                     print(f"[RATE LIMIT] User {self.user_id} exceeded session limit.")
                     return
 
@@ -345,6 +367,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         sender_username=message.sender_id,
                         recipient_username=message.target_id
                     )
+
+                    # Intercept AI Assistant messages
+                    if message.target_id == 'AI_Assistant':
+                        modules = self.license_info.get('MODULES', '') if self.license_info else ''
+                        if 'GENERAL_AI' in modules or 'ADVANCE_AI' in modules:
+                            import asyncio
+                            use_advance_ai = 'ADVANCE_AI' in modules
+                            asyncio.create_task(self.handle_ai_assistant_response(message, use_advance_ai))
+
 
             elif wrapper.HasField('command'):
                 command = wrapper.command
@@ -605,6 +636,166 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except User.DoesNotExist:
             pass
 
+    async def handle_ai_assistant_response(self, message, use_advance_ai=False):
+        """
+        Process the user's message to AI_Assistant asynchronously in the background.
+        Provides failure isolation (wrapped in a global try-except block).
+        """
+        try:
+            from django.contrib.auth import get_user_model
+            from aichat.services import process_ai_query
+            from chat.models import MessageAttachment
+            from channels.db import database_sync_to_async
+            import uuid
+            import time
+            import json
+            
+            User = get_user_model()
+            
+            # Fetch sender User object from DB
+            sender_user = await database_sync_to_async(User.objects.get)(username=message.sender_id)
+            
+            # Fetch attachment ID if present
+            attachment_id = None
+            if message.HasField('attachment'):
+                try:
+                    attachment = await database_sync_to_async(
+                        lambda: MessageAttachment.objects.filter(message__message_id=message.message_id).first()
+                    )()
+                    if attachment:
+                        attachment_id = attachment.id
+                except Exception:
+                    pass
+
+            # Mark the user's message as READ by AI Assistant immediately
+            from chat.models import Message as DBMessage
+            await database_sync_to_async(DBMessage.objects.filter(message_id=message.message_id).update)(read_receipt=2)
+            
+            # Send READ receipt back to the user via WebSocket
+            if self.has_protobuf():
+                from chat.protocols import messages_pb2
+                import base64
+                rec_wrap = messages_pb2.ProtocolWrapper()
+                rec_wrap.receipt.message_id = message.message_id
+                rec_wrap.receipt.chat_id = 'AI_Assistant'
+                rec_wrap.receipt.reader_id = 'AI_Assistant'
+                rec_wrap.receipt.type = 1  # 1 means READ
+                rec_wrap.receipt.is_group = False
+                encoded_rec = base64.b64encode(rec_wrap.SerializeToString()).decode('ascii')
+                is_rec_protobuf = True
+            else:
+                wrapper_data = {
+                    'receipt': {
+                        'messageId': message.message_id,
+                        'chatId': 'AI_Assistant',
+                        'readerId': 'AI_Assistant',
+                        'type': 1,
+                        'isGroup': False
+                    }
+                }
+                encoded_rec = json.dumps(wrapper_data)
+                is_rec_protobuf = False
+            
+            await self.channel_layer.group_send(
+                f'user_{message.sender_id}',
+                {
+                    'type': 'chat.message',
+                    'data': encoded_rec,
+                    'is_protobuf': is_rec_protobuf
+                }
+            )
+
+            # Decrypt query, search docs, run heuristic QA engine, and encrypt reply
+            # Wrap in database_sync_to_async since process_ai_query performs blocking file and DB reads
+            payload_str = message.payload.decode('utf-8', errors='replace')
+            
+            res = await database_sync_to_async(process_ai_query)(
+                user=sender_user,
+                encrypted_query_or_plain=payload_str,
+                attachment_id=attachment_id,
+                use_advance_ai=use_advance_ai
+            )
+            
+            reply_text = res['reply_text']
+            reply_payload = res['encrypted_reply']
+            is_e2ee = res['is_e2ee']
+            
+            # Create a DictObjectWrapper or mock protobuf message for the reply
+            ai_msg_id = str(uuid.uuid4())
+            curr_time = int(time.time() * 1000)
+            
+            # Create ProtocolWrapper or DictObjectWrapper based on self.has_protobuf()
+            if self.has_protobuf():
+                from chat.protocols import messages_pb2
+                import base64
+                
+                pb_wrap = messages_pb2.ProtocolWrapper()
+                pb_wrap.chat_message.message_id = ai_msg_id
+                pb_wrap.chat_message.sender_id = 'AI_Assistant'
+                pb_wrap.chat_message.target_id = self.user_id
+                pb_wrap.chat_message.is_group_message = False
+                pb_wrap.chat_message.payload = reply_payload.encode('utf-8')
+                pb_wrap.chat_message.type = 0  # TEXT
+                pb_wrap.chat_message.received_at = curr_time
+                
+                updated_bytes = pb_wrap.SerializeToString()
+                encoded_msg = base64.b64encode(updated_bytes).decode('ascii')
+                is_protobuf = True
+            else:
+                data = {
+                    'chat_message': {
+                        'message_id': ai_msg_id,
+                        'sender_id': 'AI_Assistant',
+                        'target_id': self.user_id,
+                        'is_group_message': False,
+                        'payload': reply_payload,
+                        'type': 0,
+                        'received_at': curr_time
+                    }
+                }
+                encoded_msg = json.dumps(data)
+                is_protobuf = False
+                
+            # Create a mock wrapper to pass to save_message_to_db
+            class MockMessage:
+                def __init__(self, msg_id, sender_id, target_id, payload_bytes, received_at):
+                    self.message_id = msg_id
+                    self.sender_id = sender_id
+                    self.target_id = target_id
+                    self.is_group_message = False
+                    self.payload = payload_bytes
+                    self.type = 0
+                    self.received_at = received_at
+                    self.reply_to_message_id = None
+                    self.timer_seconds = 0
+                def HasField(self, field):
+                    return False
+                    
+            mock_msg = MockMessage(
+                msg_id=ai_msg_id,
+                sender_id='AI_Assistant',
+                target_id=self.user_id,
+                payload_bytes=reply_payload.encode('utf-8'),
+                received_at=curr_time
+            )
+            
+            # Save the AI's reply to the database (for persistent DM history)
+            await self.save_message_to_db(mock_msg)
+            
+            # Send the message to the user's connection group
+            target_group = f'user_{self.user_id}'
+            await self.channel_layer.group_send(
+                target_group,
+                {
+                    'type': 'chat.message',
+                    'data': encoded_msg,
+                    'is_protobuf': is_protobuf
+                }
+            )
+        except Exception as e:
+            # Failure Isolation: Make sure errors in the AI background task never crash WebSockets
+            print(f"[AI PROCESSING ERROR] {e}")
+
     @database_sync_to_async
     def get_contact_user_ids(self, username):
         """Get all user IDs who have bookmarked this user (i.e., contacts who should see presence)."""
@@ -625,6 +816,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         User = get_user_model()
 
         try:
+            if message.sender_id == 'AI_Assistant':
+                try:
+                    User.objects.get(username='AI_Assistant')
+                except User.DoesNotExist:
+                    from aichat.services import init_ai_assistant
+                    init_ai_assistant()
             sender = User.objects.get(username=message.sender_id)
             content = message.payload.decode('utf-8', errors='replace')
             

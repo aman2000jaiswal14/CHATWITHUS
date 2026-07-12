@@ -1,4 +1,4 @@
-const config = () => window.CHAT_CONFIG || {};
+const config = () => window.CHAT_F_CONFIG || {};
 
 function getUrl(path) {
     const base = config().API_BASE_URL || '';
@@ -22,7 +22,7 @@ function getHeaders(method, isMultipart = false) {
 }
 
 export async function refreshToken() {
-    const cfg = window.CHAT_CONFIG || {};
+    const cfg = window.CHAT_F_CONFIG || {};
     const baseUrl = (cfg.API_BASE_URL || '').replace(/\/$/, '');
     const res = await fetch(`${baseUrl}/chat/api/auth/token/`, {
         method: 'POST',
@@ -35,7 +35,7 @@ export async function refreshToken() {
     if (!res.ok) throw new Error("Failed to refresh token");
     const data = await res.json();
     if (data.token) {
-        window.CHAT_CONFIG.TOKEN = data.token;
+        window.CHAT_F_CONFIG.TOKEN = data.token;
         return data.token;
     }
     throw new Error("No token returned");
@@ -49,7 +49,7 @@ async function authorizedFetch(path, options = {}) {
     const isMultipart = options.isMultipart || false;
 
     // Check if token exists, if not, fetch it first
-    if (!window.CHAT_CONFIG.TOKEN) {
+    if (!window.CHAT_F_CONFIG.TOKEN) {
         try {
             await refreshToken();
         } catch (err) {
@@ -82,7 +82,7 @@ async function authorizedFetch(path, options = {}) {
             } catch (err) {
                 console.error("Token refresh failed:", err);
                 refreshQueue = [];
-                window.CHAT_CONFIG.TOKEN = null;
+                window.CHAT_F_CONFIG.TOKEN = null;
                 throw err;
             } finally {
                 isRefreshing = false;
@@ -98,7 +98,7 @@ async function authorizedFetch(path, options = {}) {
         }
 
         // Retry original request with the new token
-        fetchOptions.headers['Authorization'] = `Bearer ${window.CHAT_CONFIG.TOKEN}`;
+        fetchOptions.headers['Authorization'] = `Bearer ${window.CHAT_F_CONFIG.TOKEN}`;
         res = await fetch(getUrl(path), fetchOptions);
     }
 
@@ -208,6 +208,12 @@ export async function makeGroupAdmin(groupId, username) {
 
 export async function fetchStatuses() {
     const res = await authorizedFetch('/chat/api/status/', { method: 'GET' });
+    if (!res.ok) throw res;
+    return res.json();
+}
+
+export async function fetchAiStatus() {
+    const res = await authorizedFetch('/chat/api/status/ai/', { method: 'GET' });
     if (!res.ok) throw res;
     return res.json();
 }

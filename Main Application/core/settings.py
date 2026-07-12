@@ -41,7 +41,25 @@ default_ssl_redirect = PROD
 # HTTPS configuration flag (Switch to False for HTTP/WS)
 USE_HTTPS = env.bool('USE_HTTPS', default=default_use_https)
 
+# ==========================================
+# 1. Advanced AI (Ollama LLM) Settings
+# ==========================================
+OLLAMA_API_URL = env.str('OLLAMA_API_URL', default='http://localhost:11434/api/generate')
+OLLAMA_MODEL = env.str('OLLAMA_MODEL', default='qwen2.5-coder:1.5b')
+OLLAMA_TIMEOUT = env.int('OLLAMA_TIMEOUT', default=30)
+MAX_ATTACHMENT_READ_SIZE = env.int('MAX_ATTACHMENT_READ_SIZE', default=512000)
 
+# ==========================================
+# 2. Rate Limiting Configurations
+# ==========================================
+WS_RATE_LIMIT = env.int('WS_RATE_LIMIT', default=10000)
+API_RATE_LIMIT = env.int('API_RATE_LIMIT', default=20)
+REGISTRATION_RATE_LIMIT = env.int('REGISTRATION_RATE_LIMIT', default=5)
+
+# ==========================================
+# 3. Security & Cryptography
+# ==========================================
+ENCRYPTION_SALT = env.str('ENCRYPTION_SALT', default='CHATWITHUS_SALT')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -67,6 +85,7 @@ INSTALLED_APPS = [
     'accounts',
     'chat',
     'corsheaders',
+    'aichat',
 ]
 
 MIDDLEWARE = [
@@ -208,4 +227,8 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
 
 # Global Message Expiration Policy (Module 1)
 # Default: 86400 seconds (24 hours)
-GLOBAL_MESSAGE_EXPIRATION_SECONDS = 86400
+GLOBAL_MESSAGE_EXPIRATION_SECONDS = env.int('GLOBAL_MESSAGE_EXPIRATION_SECONDS', default=86400)
+
+# Secure AI Module settings
+AI_DOC_FOLDER = os.path.join(BASE_DIR, 'AI_DOC_TO_READ_AND_ANALYSE')
+

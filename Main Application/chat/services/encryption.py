@@ -13,7 +13,8 @@ class EncryptionService:
     """
     def __init__(self):
         # Derive a consistent 32-byte key from Django's SECRET_KEY
-        salt = b'CHATWITHUS_SALT'  # Fixed salt for system-wide consistency
+        salt_str = getattr(settings, 'ENCRYPTION_SALT', 'CHATWITHUS_SALT')
+        salt = salt_str.encode('utf-8')
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,

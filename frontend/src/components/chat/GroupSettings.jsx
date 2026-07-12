@@ -4,7 +4,7 @@ import { useChatStore } from '../../store/useChatStore';
 import { leaveGroup, renameGroup } from '../../services/api';
 import ExportModal from './ExportModal';
 
-const config = () => window.CHAT_CONFIG || {};
+const config = () => window.CHAT_F_CONFIG || {};
 
 const GroupSettings = ({ onBack }) => {
     const { activeChatId, groups, setGroups, setCurrentView } = useChatStore();

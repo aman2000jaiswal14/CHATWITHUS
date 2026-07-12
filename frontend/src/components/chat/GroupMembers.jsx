@@ -18,7 +18,7 @@ const GroupMembers = ({ onBack }) => {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
 
-    const config = window.CHAT_CONFIG || {};
+    const config = window.CHAT_F_CONFIG || {};
     const currentUser = config.USER_ID || '';
     const group = groups.find(g => String(g.id) === activeChatId);
 

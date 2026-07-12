@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useChatStore } from '../../store/useChatStore';
-import { User, MessageCircle, Users, UserPlus, PlusCircle, BookmarkMinus, ShieldCheck, ShieldQuestion, ChevronDown, X, Bell, BellOff } from 'lucide-react';
+import { User, MessageCircle, Users, UserPlus, PlusCircle, BookmarkMinus, ShieldCheck, ShieldQuestion, ChevronDown, X, Bell, BellOff, Sparkles } from 'lucide-react';
 import { removeBookmark, verifyBookmark, setUserStatus, updateMuteSettings } from '../../services/api';
 
 const TABS = [
@@ -24,7 +24,7 @@ const Sidebar = ({ onSelectChat }) => {
     const [showStatusPicker, setShowStatusPicker] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    const config = window.CHAT_CONFIG || {};
+    const config = window.CHAT_F_CONFIG || {};
     const currentUser = config.USER_ID || 'anonymous';
     const myPresence = presence[currentUser] || { status: 0, is_online: true };
     const myStatus = typeof myPresence === 'object' ? myPresence.status : myPresence;
@@ -177,7 +177,7 @@ const Sidebar = ({ onSelectChat }) => {
     );
 
     // Inject/Merge Emergency Broadcast group if licensed
-    const isEmergencyLicensed = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('EMERGENCY_BROADCAST');
+    const isEmergencyLicensed = window.CHAT_F_VERIFIED_MODULES && window.CHAT_F_VERIFIED_MODULES.includes('EMERGENCY_BROADCAST');
     const serverEmergencyGroup = groups.find(g => g.id === 'emergency');
 
     const emergencyGroup = isEmergencyLicensed ? {
@@ -306,6 +306,15 @@ const Sidebar = ({ onSelectChat }) => {
                                 </div>
                             )}
                         </div>
+                        {window.CHAT_F_VERIFIED_MODULES && window.CHAT_F_VERIFIED_MODULES.includes('GENERAL_AI') && (
+                            <button
+                                onClick={() => onSelectChat('AI_Assistant', false)}
+                                className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-[11px] rounded-md shadow-md hover:shadow-emerald-500/10 transition-all duration-200 group w-full justify-center"
+                            >
+                                <Sparkles className="w-3.5 h-3.5 animate-pulse text-emerald-200 group-hover:rotate-12 transition-transform" />
+                                <span>Chat with AI Assistant</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

@@ -12,7 +12,7 @@ const AddGroupMember = ({ onBack }) => {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
 
-    const config = window.CHAT_CONFIG || {};
+    const config = window.CHAT_F_CONFIG || {};
 
     const group = groups.find(g => String(g.id) === activeChatId);
 

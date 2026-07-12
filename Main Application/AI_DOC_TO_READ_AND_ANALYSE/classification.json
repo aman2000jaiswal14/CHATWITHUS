@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "pattern": "^secret_.*",
+      "allowed_roles": ["Admin", "Commander"]
+    },
+    {
+      "pattern": "^confidential_.*",
+      "allowed_roles": ["Staff", "Admin", "Commander"]
+    },
+    {
+      "pattern": ".*",
+      "allowed_roles": ["*"]
+    }
+  ]
+}

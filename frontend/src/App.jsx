@@ -21,16 +21,16 @@ function App() {
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
-  const [isAuthReady, setIsAuthReady] = React.useState(!!window.CHAT_CONFIG?.TOKEN);
+  const [isAuthReady, setIsAuthReady] = React.useState(!!window.CHAT_F_CONFIG?.TOKEN);
 
-  const config = window.CHAT_CONFIG || {};
+  const config = window.CHAT_F_CONFIG || {};
   const wsUrl = config.WS_URL ? config.WS_URL.replace(/\/chat\/ws\/chat\/[^/]+\//, `/chat/ws/chat/${currentUser}/`) : `ws://${window.location.host}/chat/ws/chat/${currentUser}/`;
 
   // 1. Effect for License Verification
   useEffect(() => {
     const rawLicense = config.LICENSE_INFO;
     LicensingService.verifyLicense(rawLicense).then(result => {
-      window.CWU_VERIFIED_MODULES = result.modules || [];
+      window.CHAT_F_VERIFIED_MODULES = result.modules || [];
       if (result.valid) {
         encryptionService.preDeriveKey();
         setIsSelfDestructEnabled(result.module_self_destruct === true);
@@ -48,7 +48,7 @@ function App() {
 
       const initConnection = async () => {
         try {
-          if (!window.CHAT_CONFIG.TOKEN) {
+          if (!window.CHAT_F_CONFIG.TOKEN) {
             const baseUrl = (config.API_BASE_URL || '').replace(/\/$/, '');
             const res = await fetch(`${baseUrl}/chat/api/auth/token/`, {
               method: 'POST',
@@ -60,7 +60,7 @@ function App() {
             });
             const data = await res.json();
             if (data.token) {
-              window.CHAT_CONFIG.TOKEN = data.token;
+              window.CHAT_F_CONFIG.TOKEN = data.token;
             } else {
               console.error("[Auth] Failed to retrieve token", data);
               return;
@@ -70,7 +70,7 @@ function App() {
           if (!isSubscribed) return;
           setIsAuthReady(true);
 
-          const fullWsUrl = `${wsUrl}?token=${window.CHAT_CONFIG.TOKEN}`;
+          const fullWsUrl = `${wsUrl}?token=${window.CHAT_F_CONFIG.TOKEN}`;
           wsClient = WebSocketClient.getInstance(fullWsUrl, currentUser);
           wsClient.connect();
 

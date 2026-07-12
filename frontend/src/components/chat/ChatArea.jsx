@@ -8,7 +8,7 @@ import WebSocketClient from '../../services/WebSocketClient';
 import webrtcService from '../../services/WebRTCService';
 
 const StatusTicks = ({ status }) => {
-    if (!(window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT')) return null;
+    if (!(window.CHAT_F_VERIFIED_MODULES || []).includes('READ_RECEIPT')) return null;
     if (status === 2) {
         return (
             <div className="flex -space-x-1" title="Read">
@@ -31,7 +31,7 @@ const StatusTicks = ({ status }) => {
 const getFullUrl = (url) => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
-    const config = window.CHAT_CONFIG || {};
+    const config = window.CHAT_F_CONFIG || {};
     const base = config.API_BASE_URL || '';
     const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
     const cleanUrl = url.startsWith('/') ? url : `/${url}`;
@@ -361,12 +361,12 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
         // Also ensure messages.length > 0 to prevent redundant offset=0 calls on mount.
         if (e.target.scrollTop <= 200 && messages.length > 0 && hasMoreHistory && !isFetchingHistory) {
             // Verify LAZYLOADING module is licensed
-            const hasLazyLoading = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('LAZYLOADING');
+            const hasLazyLoading = window.CHAT_F_VERIFIED_MODULES && window.CHAT_F_VERIFIED_MODULES.includes('LAZYLOADING');
             if (!hasLazyLoading) return;
 
             setIsFetchingHistory(true);
             const currentScrollHeight = e.target.scrollHeight;
-            const config = window.CHAT_CONFIG || {};
+            const config = window.CHAT_F_CONFIG || {};
             const baseUrl = config.API_BASE_URL || '';
             const offset = messages.length;
             const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=${offset}`;
@@ -433,7 +433,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
 
         if (!fetchedChats.has(activeChatId)) {
             setIsFetchingHistory(true);
-            const config = window.CHAT_CONFIG || {};
+            const config = window.CHAT_F_CONFIG || {};
             const baseUrl = config.API_BASE_URL || '';
             const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=0`;
 
@@ -477,7 +477,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
 
                         // BACKGROUND CHAINING: Immediately fetch the next batch (offset 12) 
                         // to "warm up" history so the first scroll-up is instant.
-                        const hasLazyLoading = window.CWU_VERIFIED_MODULES && window.CWU_VERIFIED_MODULES.includes('LAZYLOADING');
+                        const hasLazyLoading = window.CHAT_F_VERIFIED_MODULES && window.CHAT_F_VERIFIED_MODULES.includes('LAZYLOADING');
                         if (hasLazyLoading && processed.length === 12) {
                             const nextUrl = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=12`;
                             fetch(nextUrl, { headers: { 'Authorization': `Bearer ${config.TOKEN || ''}` } })
@@ -526,7 +526,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     // Consolidated effect for marking as read with debounce to prevent duplicate calls on load
     useEffect(() => {
         if (!activeChatId || !isWidgetOpen) return;
-        const isLicensed = (window.CWU_VERIFIED_MODULES || []).includes('READ_RECEIPT');
+        const isLicensed = (window.CHAT_F_VERIFIED_MODULES || []).includes('READ_RECEIPT');
         if (!isLicensed) return;
 
         const timer = setTimeout(() => {
@@ -832,7 +832,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
     };
 
     const isEmergency = activeChatId === 'emergency';
-    const userRole = (window.CHAT_CONFIG?.USER_ROLE || 'User').toLowerCase();
+    const userRole = (window.CHAT_F_CONFIG?.USER_ROLE || 'User').toLowerCase();
     const canSendToEmergency = userRole === 'commander' || userRole === 'admin';
     const isSendingRestricted = isEmergency && !canSendToEmergency;
 
@@ -879,7 +879,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                     )}
                 </div>
                 <div className="flex gap-1 items-center">
-                    {!isEmergency && !isGroupChat && (window.CWU_VERIFIED_MODULES || []).includes('VIDEOCALL') && (
+                    {!isEmergency && !isGroupChat && (window.CHAT_F_VERIFIED_MODULES || []).includes('VIDEOCALL') && (
                         <>
                             <button
                                 onClick={() => webrtcService.initiateCall(activeChatId, false)}
@@ -1073,7 +1073,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                         )}
 
                                         {/* Reply Trigger */}
-                                        {!isExpired && !isEmergency && (window.CWU_VERIFIED_MODULES || []).includes('REPLY') && (
+                                        {!isExpired && !isEmergency && (window.CHAT_F_VERIFIED_MODULES || []).includes('REPLY') && (
                                             <button
                                                 onClick={() => setReplyToMessage(msg)}
                                                 className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-all p-1.5 hover:bg-slate-700/50 rounded-full text-slate-400 hover:text-emerald-400 ${isOwn ? '-left-8' : '-right-8'}`}
@@ -1221,7 +1221,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                                 />
                             </div>
 
-                            {(window.CWU_VERIFIED_MODULES || []).includes('VOICE') && (
+                            {(window.CHAT_F_VERIFIED_MODULES || []).includes('VOICE') && (
                                 <button
                                     onClick={isRecording ? stopRecording : startRecording}
                                     disabled={isUploading}

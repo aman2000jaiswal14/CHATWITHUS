@@ -89,6 +89,14 @@ def api_bookmarks(request):
         return JsonResponse({'error': 'unauthorized'}, status=401)
     bookmarks = Bookmark.objects.filter(user=user).select_related('bookmarked_user')
 
+    # Filter AI Assistant if unlicensed
+    from .services.licensing import LicensingService
+    license_info = LicensingService.get_license_info()
+    modules = license_info.get('MODULES', '') if license_info else ''
+    if 'GENERAL_AI' not in modules and 'ADVANCE_AI' not in modules:
+        bookmarks = bookmarks.exclude(bookmarked_user__username='AI_Assistant')
+
+
     # Get all read cursors for DMs
     cursors = {c.chat_id: c.last_read_at for c in ChatReadCursor.objects.filter(user=user, is_group=False)}
     
@@ -224,6 +232,14 @@ def api_all_users(request):
     offset = (page - 1) * limit
     
     users_qs = User.objects.exclude(id=user.id).exclude(is_superuser=True)
+    
+    # Filter AI Assistant if unlicensed
+    from .services.licensing import LicensingService
+    license_info = LicensingService.get_license_info()
+    modules = license_info.get('MODULES', '') if license_info else ''
+    if 'GENERAL_AI' not in modules and 'ADVANCE_AI' not in modules:
+        users_qs = users_qs.exclude(username='AI_Assistant')
+
     
     if query:
         users_qs = users_qs.filter(
@@ -843,7 +859,16 @@ def api_get_statuses(request):
 
     return JsonResponse({'statuses': statuses})
 
-
+def api_ai_status(request):
+    """Get the activity status for the AI Assistant."""
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'unauthorized'}, status=401)
+    
+    from aichat.services import check_ai_assistant_status
+    is_online = check_ai_assistant_status()
+    
+    return JsonResponse({'is_online': is_online})
 @require_POST
 def api_mark_read(request):
     """Update the read cursor for a chat (DM or group)."""
@@ -928,8 +953,10 @@ def api_generate_token(request):
     """Generate a JWT token for a given user. (Requires Identity Signature)"""
     # Simple IP-based rate limiting for pre-auth endpoint
     from .services.rate_limit import SessionRateLimiter
+    from django.conf import settings
     ip = request.META.get('REMOTE_ADDR')
-    if not SessionRateLimiter.is_allowed(f"ip_{ip}", limit=20):
+    limit = getattr(settings, 'API_RATE_LIMIT', 20)
+    if not SessionRateLimiter.is_allowed(f"ip_{ip}", limit=limit):
         return JsonResponse({'error': 'rate limit exceeded'}, status=429)
 
     try:
@@ -1061,8 +1088,10 @@ def api_register(request):
     """Register a new user with default credentials."""
     # Simple IP-based rate limiting for registration
     from .services.rate_limit import SessionRateLimiter
+    from django.conf import settings
     ip = request.META.get('REMOTE_ADDR')
-    if not SessionRateLimiter.is_allowed(f"reg_ip_{ip}", limit=5):
+    limit = getattr(settings, 'REGISTRATION_RATE_LIMIT', 5)
+    if not SessionRateLimiter.is_allowed(f"reg_ip_{ip}", limit=limit):
         return JsonResponse({'error': 'registration rate limit exceeded'}, status=429)
 
     data = json.loads(request.body)
@@ -1150,6 +1179,12 @@ def api_get_public_key(request, username):
 
     try:
         from .models import UserPublicKey
+        if username == 'AI_Assistant':
+            try:
+                User.objects.get(username='AI_Assistant')
+            except User.DoesNotExist:
+                from aichat.services import init_ai_assistant
+                init_ai_assistant()
         target_user = User.objects.get(username=username)
         key_obj = UserPublicKey.objects.get(user=target_user)
         return JsonResponse({

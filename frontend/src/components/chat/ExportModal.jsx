@@ -13,7 +13,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
     const getFullUrl = (url) => {
         if (!url) return '';
         if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
-        const config = window.CHAT_CONFIG || {};
+        const config = window.CHAT_F_CONFIG || {};
         const base = config.API_BASE_URL || '';
         const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
         const cleanUrl = url.startsWith('/') ? url : `/${url}`;
@@ -30,7 +30,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                 include_attachments: String(includeAttachments),
                 format: 'json',
             });
-            const config = window.CHAT_CONFIG || {};
+            const config = window.CHAT_F_CONFIG || {};
             const baseUrl = config.API_BASE_URL || '';
             const apiUrl = `${baseUrl}/chat/api/export/${chatId}/?${params}`;
 
