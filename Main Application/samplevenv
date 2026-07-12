@@ -9,3 +9,28 @@ ALLOWED_HOSTS=*
 
 # HTTPS/SSL Configuration for development
 USE_HTTPS=True
+
+# ==========================================
+# 1. Advanced AI (Ollama LLM) Settings
+# ==========================================
+OLLAMA_API_URL=http://localhost:11434/api/generate
+OLLAMA_MODEL=qwen2.5-coder:1.5b
+OLLAMA_TIMEOUT=30
+MAX_ATTACHMENT_READ_SIZE=512000
+
+# ==========================================
+# 2. Rate Limiting Configurations
+# ==========================================
+WS_RATE_LIMIT=10000
+API_RATE_LIMIT=20
+REGISTRATION_RATE_LIMIT=5
+
+# ==========================================
+# 3. Security & Cryptography
+# ==========================================
+ENCRYPTION_SALT=CHATWITHUS_SALT
+
+# ==========================================
+# 4. Message Lifecycle
+# ==========================================
+GLOBAL_MESSAGE_EXPIRATION_SECONDS=86400
