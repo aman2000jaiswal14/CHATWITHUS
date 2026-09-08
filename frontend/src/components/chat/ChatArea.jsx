@@ -38,6 +38,23 @@ const getFullUrl = (url) => {
     return `${cleanBase}${cleanUrl}`;
 };
 
+const fetchMediaBlob = async (url) => {
+    const token = window.CHAT_F_CONFIG?.TOKEN;
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const authedUrl = token && !url.includes('token=')
+        ? (url.includes('?') ? `${url}&token=${encodeURIComponent(token)}` : `${url}?token=${encodeURIComponent(token)}`)
+        : url;
+    return await fetch(authedUrl, { headers });
+};
+
+const getAuthenticatedMediaUrl = (url) => {
+    const token = window.CHAT_F_CONFIG?.TOKEN;
+    if (!token || url.includes('token=') || url.startsWith('blob:') || url.startsWith('data:')) {
+        return url;
+    }
+    return url.includes('?') ? `${url}&token=${encodeURIComponent(token)}` : `${url}?token=${encodeURIComponent(token)}`;
+};
+
 const DecryptedImage = ({ url, alt, senderId, isGroup, chatId }) => {
     const [decryptedUrl, setDecryptedUrl] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
@@ -46,7 +63,7 @@ const DecryptedImage = ({ url, alt, senderId, isGroup, chatId }) => {
         let isMounted = true;
         const decryptAndShow = async () => {
             try {
-                const response = await fetch(url);
+                const response = await fetchMediaBlob(url);
                 const buffer = await response.arrayBuffer();
                 const decrypted = await encryptionService.decryptBuffer(buffer, senderId, isGroup, chatId);
                 const blob = new Blob([decrypted]);
@@ -54,7 +71,7 @@ const DecryptedImage = ({ url, alt, senderId, isGroup, chatId }) => {
                 if (isMounted) setDecryptedUrl(localUrl);
             } catch (err) {
                 console.error("Image decryption failed:", err);
-                if (isMounted) setDecryptedUrl(url); // Fallback to raw URL
+                if (isMounted) setDecryptedUrl(getAuthenticatedMediaUrl(url)); // Fallback to authenticated URL
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -81,7 +98,7 @@ const DecryptedImage = ({ url, alt, senderId, isGroup, chatId }) => {
 
     if (loading) return <div className="w-full h-32 bg-slate-800 animate-pulse flex items-center justify-center text-[10px] text-slate-500 font-mono">DECRYPTING...</div>;
     return (
-        <div className="relative group/img cursor-pointer" onClick={() => window.open(decryptedUrl, '_blank')}>
+        <div className="relative group/img cursor-pointer" onClick={() => window.open(decryptedUrl || getAuthenticatedMediaUrl(url), '_blank')}>
             <img src={decryptedUrl} alt={alt} className="w-full h-auto block" />
             <button
                 onClick={handleDownload}
@@ -100,7 +117,7 @@ const DecryptedFile = ({ url, name, size, senderId, isGroup, chatId }) => {
     const handleDownload = async () => {
         setDecrypting(true);
         try {
-            const response = await fetch(url);
+            const response = await fetchMediaBlob(url);
             const buffer = await response.arrayBuffer();
             const decrypted = await encryptionService.decryptBuffer(buffer, senderId, isGroup, chatId);
             const blob = new Blob([decrypted]);
@@ -114,7 +131,7 @@ const DecryptedFile = ({ url, name, size, senderId, isGroup, chatId }) => {
             URL.revokeObjectURL(localUrl);
         } catch (err) {
             console.error("File decryption failed:", err);
-            window.open(url, '_blank'); // Fallback
+            window.open(getAuthenticatedMediaUrl(url), '_blank'); // Fallback
         } finally {
             setDecrypting(false);
         }
@@ -154,7 +171,7 @@ const DecryptedAudio = ({ url, name, senderId, isGroup, chatId }) => {
         let isMounted = true;
         const decryptAndShow = async () => {
             try {
-                const response = await fetch(url);
+                const response = await fetchMediaBlob(url);
                 const buffer = await response.arrayBuffer();
                 const decrypted = await encryptionService.decryptBuffer(buffer, senderId, isGroup, chatId);
                 const blob = new Blob([decrypted], { type: 'audio/webm' });
@@ -162,7 +179,7 @@ const DecryptedAudio = ({ url, name, senderId, isGroup, chatId }) => {
                 if (isMounted) setDecryptedUrl(localUrl);
             } catch (err) {
                 console.error("Audio decryption failed:", err);
-                if (isMounted) setDecryptedUrl(url); // Fallback to raw URL
+                if (isMounted) setDecryptedUrl(getAuthenticatedMediaUrl(url)); // Fallback to authenticated URL
             } finally {
                 if (isMounted) setLoading(false);
             }

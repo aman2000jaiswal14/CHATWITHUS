@@ -54,9 +54,7 @@ function App() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
-                identity_token: config.IDENTITY_TOKEN,
-                username: currentUser,
-                signature: config.IDENTITY_SIGNATURE 
+                identity_token: config.IDENTITY_TOKEN
               })
             });
             const data = await res.json();

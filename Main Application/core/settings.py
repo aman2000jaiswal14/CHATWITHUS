@@ -221,9 +221,11 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https?://172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+(:\d+)?$",
 ]
 
-# 50MB Upload Limits
+# 50MB Upload Limits & Streaming Threshold
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+MAX_FILE_UPLOAD_SIZE = env.int('MAX_FILE_UPLOAD_SIZE', default=52428800)  # 50MB hard limit on files
+UPLOAD_RATE_LIMIT = env.int('UPLOAD_RATE_LIMIT', default=15)  # Max uploads per minute per user
 
 # Global Message Expiration Policy (Module 1)
 # Default: 86400 seconds (24 hours)

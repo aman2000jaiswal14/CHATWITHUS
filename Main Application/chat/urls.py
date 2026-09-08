@@ -28,5 +28,6 @@ urlpatterns = [
     path('api/auth/token/', views.api_generate_token, name='chat_generate_token'),
     path('api/keys/upload/', views.api_upload_public_key, name='chat_upload_public_key'),
     path('api/keys/<str:username>/', views.api_get_public_key, name='chat_get_public_key'),
+    path('api/media/<str:filename>/', views.api_serve_media, name='chat_media'),
 ]
 

@@ -1,6 +1,6 @@
 import json
 import os
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.views.decorators.http import require_POST
@@ -16,12 +16,17 @@ User = get_user_model()
 from .services.auth import verify_jwt_token, generate_jwt_token
 
 def get_authenticated_user(request):
-    """Identify user via Bearer JWT token."""
+    """Identify user via Bearer JWT token or ?token= query param."""
+    token = None
     auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+    elif 'token' in request.GET:
+        token = request.GET.get('token')
+    
+    if not token:
         return None
     
-    token = auth_header.split(' ')[1]
     username = verify_jwt_token(token)
     if not username:
         return None
@@ -607,12 +612,13 @@ def api_chat_history(request, chat_id):
             # Only attach attachment data if message is NOT expired
             if not expired:
                 att = msg.attachments.first()
-                if att:
+                if att and att.file:
+                    att_filename = os.path.basename(att.file.name)
                     msg_dict['attachment'] = {
                         'id': str(att.id),
                         'name': att.decrypted_file_name,
                         'type': att.decrypted_file_type,
-                        'url': att.file.url if att.file else '',
+                        'url': f"/chat/api/media/{att_filename}/",
                         'size': att.file_size,
                     }
             data.append(msg_dict)
@@ -714,12 +720,13 @@ def api_export_messages(request, chat_id):
             }
             if include_attachments:
                 att = msg.attachments.first()
-                if att:
+                if att and att.file:
+                    att_filename = os.path.basename(att.file.name)
                     msg_dict['attachment'] = {
                         'id': str(att.id),
                         'name': att.decrypted_file_name,
                         'type': att.decrypted_file_type,
-                        'url': att.file.url,
+                        'url': f"/chat/api/media/{att_filename}/",
                         'size': att.file_size,
                     }
             data.append(msg_dict)
@@ -962,10 +969,6 @@ def api_generate_token(request):
     try:
         data = json.loads(request.body)
         identity_token = data.get('identity_token')
-        username = data.get('username')
-        signature = data.get('signature')
-
-        authenticated_username = None
 
         if not identity_token:
             return JsonResponse({'error': 'identity_token required'}, status=400)
@@ -1052,15 +1055,28 @@ def api_upload_attachment(request):
     if not user:
         return JsonResponse({'error': 'unauthorized'}, status=401)
     
+    # Rate limiting: 15 uploads per minute per user
+    from .services.rate_limit import SessionRateLimiter
+    from django.conf import settings
+    upload_limit = getattr(settings, 'UPLOAD_RATE_LIMIT', 15)
+    if not SessionRateLimiter.is_allowed(f"upload_user_{user.id}", limit=upload_limit, timeout=60):
+        return JsonResponse({'error': 'Upload rate limit exceeded. Please wait a moment.'}, status=429)
+
     if 'file' not in request.FILES:
         return JsonResponse({'error': 'no file provided'}, status=400)
     
     uploaded_file = request.FILES['file']
     
-    # Validate file type/extension
+    # Validate file size, extension, and content signatures
     from .services.file_service import validate_attachment
+    from django.core.exceptions import ValidationError
     try:
         validate_attachment(uploaded_file)
+    except ValidationError as e:
+        error_msg = str(e)
+        if 'exceeds maximum' in error_msg.lower():
+            return JsonResponse({'error': error_msg}, status=413)
+        return JsonResponse({'error': error_msg}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
     
@@ -1075,7 +1091,10 @@ def api_upload_attachment(request):
     path = f"chat_attachments/{filename}"
     
     actual_path = default_storage.save(path, ContentFile(uploaded_file.read()))
-    url = default_storage.url(actual_path)
+    url = f"/chat/api/media/{filename}/"
+    
+    from django.core.cache import cache
+    cache.set(f"upload_owner_{filename}", user.username, timeout=3600)
     
     return JsonResponse({
         'id': filename,
@@ -1204,4 +1223,89 @@ def api_get_public_key(request, username):
         return JsonResponse({'error': 'not_found', 'message': f'Public key for {username} not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def api_serve_media(request, filename):
+    """
+    Secure media streaming endpoint.
+    Requires valid JWT authentication and verifies that the requester
+    is an authorized participant (sender, recipient, group member, or uploader).
+    """
+    # 1. Sanitize filename to prevent Path Traversal
+    safe_filename = os.path.basename(filename)
+    if not safe_filename or safe_filename != filename or '..' in filename:
+        return JsonResponse({'error': 'invalid filename'}, status=400)
+
+    # 2. Authentication
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'error': 'unauthorized'}, status=401)
+
+    from django.conf import settings
+    from .models import MessageAttachment
+    from django.utils import timezone
+    from django.core.cache import cache
+    import mimetypes
+
+    # 3. Locate attachment record & physical file
+    att = MessageAttachment.objects.filter(file__endswith=safe_filename).first()
+    file_path = os.path.join(settings.MEDIA_ROOT, 'chat_attachments', safe_filename)
+
+    if not os.path.exists(file_path):
+        if att and att.file and os.path.exists(att.file.path):
+            file_path = att.file.path
+        else:
+            return JsonResponse({'error': 'file not found'}, status=404)
+
+    # 4. Authorization checks
+    if att:
+        msg = att.message
+        now = timezone.now()
+
+        # Check message expiration
+        if att.is_expired or msg.is_expired or (msg.expires_at and now >= msg.expires_at):
+            return JsonResponse({'error': 'attachment expired'}, status=410)
+
+        is_authorized = False
+        if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+            is_authorized = True
+        elif msg.is_emergency_broadcast:
+            is_authorized = True
+        elif msg.group:
+            if msg.group.members.filter(id=user.id).exists():
+                is_authorized = True
+        else:
+            if user.id in (msg.sender_id, msg.recipient_id):
+                is_authorized = True
+
+        if not is_authorized:
+            return JsonResponse({'error': 'forbidden'}, status=403)
+    else:
+        # Attachment uploaded but not yet linked to a Message (e.g. upload preview)
+        owner = cache.get(f"upload_owner_{safe_filename}")
+        if not owner or owner != user.username:
+            return JsonResponse({'error': 'forbidden'}, status=403)
+
+    # 5. Serve file with security headers
+    content_type, _ = mimetypes.guess_type(file_path)
+    if not content_type:
+        content_type = 'application/octet-stream'
+
+    display_name = safe_filename
+    if att:
+        try:
+            display_name = att.decrypted_file_name or safe_filename
+        except Exception:
+            pass
+
+    response = FileResponse(
+        open(file_path, 'rb'),
+        content_type=content_type,
+        as_attachment=False,
+        filename=display_name
+    )
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Content-Security-Policy'] = "default-src 'none'"
+    return response
+
 

@@ -30,5 +30,6 @@ urlpatterns = [
     path('chat/', include('chat.urls')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('favicon.ico'))),
     path('', RedirectView.as_view(pattern_name='login', permanent=False), name='home'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + staticfiles_urlpatterns()
+] + staticfiles_urlpatterns()
+
 

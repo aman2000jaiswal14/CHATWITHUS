@@ -113,7 +113,12 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                     if (msg.attachment && msg.attachment.url) {
                         try {
                             const fileUrl = getFullUrl(msg.attachment.url);
-                            const resp = await fetch(fileUrl);
+                            const token = window.CHAT_F_CONFIG?.TOKEN;
+                            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                            const authedUrl = token && !fileUrl.includes('token=')
+                                ? (fileUrl.includes('?') ? `${fileUrl}&token=${encodeURIComponent(token)}` : `${fileUrl}?token=${encodeURIComponent(token)}`)
+                                : fileUrl;
+                            const resp = await fetch(authedUrl, { headers });
                             const buffer = await resp.arrayBuffer();
                             const decrypted = await encryptionService.decryptBuffer(buffer, msg.senderId, isGroup, chatId);
 
