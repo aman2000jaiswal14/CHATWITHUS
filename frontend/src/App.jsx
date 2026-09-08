@@ -10,7 +10,7 @@ import VideoCallModal from './components/chat/VideoCallModal';
 import { encryptionService } from './services/EncryptionService';
 import { useChatStore } from './store/useChatStore';
 import WebSocketClient from './services/WebSocketClient';
-import { fetchBookmarks, fetchGroups, fetchStatuses, fetchMuteSettings } from './services/api';
+import { fetchBookmarks, fetchGroups, fetchStatuses, fetchMuteSettings, getAuthToken, setAuthToken } from './services/api';
 import { ShieldAlert } from 'lucide-react';
 import LicensingService from './services/LicensingService';
 
@@ -21,7 +21,7 @@ function App() {
     setBookmarks, setUnverified, setGroups, setActiveChat, setCurrentView, clearActiveChat } = useChatStore();
 
   const [licenseState, setLicenseState] = React.useState({ loading: true, valid: false, error: null });
-  const [isAuthReady, setIsAuthReady] = React.useState(!!window.CHAT_F_CONFIG?.TOKEN);
+  const [isAuthReady, setIsAuthReady] = React.useState(!!getAuthToken());
 
   const config = window.CHAT_F_CONFIG || {};
   const wsUrl = config.WS_URL ? config.WS_URL.replace(/\/chat\/ws\/chat\/[^/]+\//, `/chat/ws/chat/${currentUser}/`) : `ws://${window.location.host}/chat/ws/chat/${currentUser}/`;
@@ -48,18 +48,22 @@ function App() {
 
       const initConnection = async () => {
         try {
-          if (!window.CHAT_F_CONFIG.TOKEN) {
+          if (!getAuthToken()) {
             const baseUrl = (config.API_BASE_URL || '').replace(/\/$/, '');
-            const res = await fetch(`${baseUrl}/chat/api/auth/token/`, {
+            const idToken = config.IDENTITY_TOKEN || window.CHAT_CONFIG?.IDENTITY_TOKEN;
+            if (config.IDENTITY_TOKEN) delete config.IDENTITY_TOKEN;
+            if (window.CHAT_CONFIG && window.CHAT_CONFIG.IDENTITY_TOKEN) delete window.CHAT_CONFIG.IDENTITY_TOKEN;
+
+            const res = await fetch(`${baseUrl}/chat/api/acall/bas`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
-                identity_token: config.IDENTITY_TOKEN
+                identity_token: idToken
               })
             });
             const data = await res.json();
             if (data.token) {
-              window.CHAT_F_CONFIG.TOKEN = data.token;
+              setAuthToken(data.token);
             } else {
               console.error("[Auth] Failed to retrieve token", data);
               return;
@@ -69,7 +73,7 @@ function App() {
           if (!isSubscribed) return;
           setIsAuthReady(true);
 
-          const fullWsUrl = `${wsUrl}?token=${window.CHAT_F_CONFIG.TOKEN}`;
+          const fullWsUrl = `${wsUrl}?token=${getAuthToken()}`;
           wsClient = WebSocketClient.getInstance(fullWsUrl, currentUser);
           wsClient.connect();
 

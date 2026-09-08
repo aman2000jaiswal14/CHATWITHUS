@@ -3,7 +3,7 @@ import datetime
 from django.conf import settings
 
 def generate_jwt_token(user_id, expiration_minutes=15):
-    """Generate a signed JWT token for a given user."""
+    """Generate a signed JWT access token for a given user."""
     payload = {
         'user_id': str(user_id),
         'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=expiration_minutes),
@@ -13,7 +13,7 @@ def generate_jwt_token(user_id, expiration_minutes=15):
 
 def verify_jwt_token(token):
     """
-    Verify the token signature and expiration.
+    Verify the access token signature and expiration.
     Returns the user_id if valid, None if invalid/expired.
     """
     try:

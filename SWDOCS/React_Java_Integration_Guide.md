@@ -37,7 +37,7 @@ sequenceDiagram
     Note over React: Injects config into window.CHAT_CONFIG (USER_ID, IDENTITY_TOKEN)
     Note over React: Loads ChatWithUsWid.js into Shadow DOM
     
-    React->>Django: 5. POST /chat/api/auth/token/ { identity_token }
+    React->>Django: 5. POST /chat/api/acall/bas { identity_token }
     Note over Django: 6. Verifies RS256 with host_public_key.pem<br/>Checks leeway (60s) & anti-replay nonce (jti)
     Django-->>React: 7. Issues Chat Session JWT
     
@@ -55,10 +55,17 @@ sequenceDiagram
      - `exp`: `now + 300` seconds (5 minutes for resilient high-latency / 1 Mbps links).
      - `jti`: Unique random UUID nonce to prevent replay attacks.
 2. **Chat Server Cryptographic Verification**:
-   - Django receives the `identity_token` at `/chat/api/auth/token/`.
+   - Django receives the `identity_token` at `/chat/api/acall/bas`.
    - Django validates the signature using `host_public_key.pem`.
    - Django enforces `aud="chatwithus"`, allows up to 60 seconds clock drift leeway, and verifies the `jti` has not been reused (cached for 10 minutes).
-   - Upon successful verification, Django returns the internal chat session JWT.
+   - Upon successful verification, Django returns the internal chat session JWT (`{ "token": "<jwt>" }`).
+
+3. **Transparent 15-Minute Token Renewal**:
+   - The Chat Server access token expires every 15 minutes to strictly cap the exposure window of bearer tokens.
+   - When expired, the Chat Widget invokes `getFreshIdentityToken()` (or dispatches `cwu:token-expired`).
+   - React calls Java `/api/chat/config` with the active `userSessionToken`, retrieves a fresh `identityToken`, and returns it.
+   - The widget exchanges it for a new 15-minute token with zero UI interruption.
+   - If the user logged out of the Java Host, Java returns `401/403`, stopping the chat instantly. Zero long-lived refresh tokens exist in browser memory.
 
 ---
 
@@ -299,7 +306,20 @@ const ChatWidget = ({ userSessionToken }) => {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    // 1. Retrieve configuration, identity token, and license from Java Backend
+    // 1. Helper to retrieve a fresh RS256 identity token from Java backend
+    const fetchFreshIdentityToken = async () => {
+      const res = await fetch('/api/chat/config', {
+        headers: {
+          'Authorization': `Bearer ${userSessionToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error('Could not load chat configuration');
+      const data = await res.json();
+      return data.identityToken;
+    };
+
+    // 2. Initial configuration retrieval from Java Backend
     fetch('/api/chat/config', {
       headers: {
         'Authorization': `Bearer ${userSessionToken}`,
@@ -311,16 +331,19 @@ const ChatWidget = ({ userSessionToken }) => {
         return res.json();
       })
       .then(data => {
-        // 2. Inject parameters into the global CHAT_CONFIG object
+        // 3. Inject parameters with renewal callback into window.CHAT_CONFIG
         window.CHAT_CONFIG = {
           USER_ID: data.username,
-          IDENTITY_TOKEN: data.identityToken, // RS256 Identity Assertion
+          IDENTITY_TOKEN: data.identityToken, // Initial RS256 Identity Assertion
+          CONFIG_URL: '/api/chat/config',
           API_BASE_URL: data.apiBaseUrl,
           WS_URL: data.wsUrl,
-          LICENSE_INFO: data.licenseInfo
+          LICENSE_INFO: data.licenseInfo,
+          // Callback invoked by Chat Widget whenever its 15-minute token expires
+          getFreshIdentityToken: fetchFreshIdentityToken
         };
 
-        // 3. Dynamically inject the Chat Widget script
+        // 4. Dynamically inject the Chat Widget script
         const scriptId = 'chat-widget-loader';
         if (!document.getElementById(scriptId)) {
           const script = document.createElement('script');
@@ -336,6 +359,20 @@ const ChatWidget = ({ userSessionToken }) => {
         console.error('Chat Widget mount failed:', err);
         setError(true);
       });
+
+    // 5. Event Bridge: Also listen for widget token expiry events
+    const handleTokenExpired = async () => {
+      try {
+        const freshToken = await fetchFreshIdentityToken();
+        window.dispatchEvent(new CustomEvent('cwu:token-renewed', {
+          detail: { identityToken: freshToken }
+        }));
+      } catch (e) {
+        console.error('[ChatWidget] Failed to renew identity token:', e);
+      }
+    };
+    window.addEventListener('cwu:token-expired', handleTokenExpired);
+    return () => window.removeEventListener('cwu:token-expired', handleTokenExpired);
   }, [userSessionToken]);
 
   if (error) return <div style={{ color: '#ef4444' }}>Chat connection error</div>;
@@ -381,4 +418,59 @@ The central chat server has **no cache** in its verification pipeline. Every req
 ### C. React Frontend
 The React client fetches the license information on page mount. 
 * To apply a changed license to the frontend client, the user needs to **refresh the page** (or re-mount the `ChatWidget` component), which triggers a new `/api/chat/config` fetch call. No rebuild of the frontend application is required.
+
+---
+
+## 7. Configuring Token Expiry & Clock Drift Leeway (Lagger)
+
+If your organization's security policy requires shortening the host-issued identity token lifespan (e.g. from **5 minutes down to 30 seconds**) and reducing the clock drift leeway ("lagger") to **30 seconds**:
+
+### A. Java Host Backend (Spring Boot)
+The identity assertion token is generated and signed with `host_private_key.pem` inside `ChatTokenService.java`.
+* **File**: `ChatTokenService.java` (described in Section 3.B)
+* **Method**: `generateIdentityToken(String username)`
+* **Line**: ~153
+* **Edit**:
+  ```java
+  // BEFORE (5 minutes / 300 seconds):
+  Instant expiry = now.plusSeconds(300); // 5 minutes validity
+
+  // AFTER (30 seconds):
+  Instant expiry = now.plusSeconds(30);  // 30 seconds validity
+  ```
+
+### B. React Frontend Host Application (`ChatWidget.jsx`)
+* **Changes Required**: **None!**
+* **Why**: The React component does not hardcode any token durations. It delegates all token acquisition to the `fetchFreshIdentityToken()` callback via Java's `/api/chat/config`. When the Chat Widget detects an expired token or connects, it triggers `getFreshIdentityToken()` automatically, which fetches the new 30-second token from Java seamlessly.
+
+### C. Django Chat Server (Public Key Verification & Clock Drift Leeway)
+The Chat Server verifies the RS256 token using `host_public_key.pem` and enforces clock drift leeway.
+* **File**: `Main Application/chat/services/auth.py`
+* **Function**: `verify_host_identity_token(identity_token)`
+* **Line**: ~59
+* **Edit**:
+  ```python
+  # BEFORE (60 seconds clock drift leeway / lagger):
+  payload = jwt.decode(
+      identity_token,
+      HOST_PUBLIC_KEY,
+      algorithms=["RS256"],
+      audience="chatwithus",
+      leeway=60  # 60s clock drift tolerance
+  )
+
+  # AFTER (30 seconds clock drift leeway / lagger):
+  payload = jwt.decode(
+      identity_token,
+      HOST_PUBLIC_KEY,
+      algorithms=["RS256"],
+      audience="chatwithus",
+      leeway=30  # 30s clock drift tolerance
+  )
+  ```
+* **Anti-Replay Nonce Cache TTL**: In the same file (`auth.py`, line ~74), since total token validity window is now 30s expiry + 30s leeway = 60s, you can safely reduce the nonce cache timeout from 600s down to 120s:
+  ```python
+  cache.set(nonce_cache_key, 1, timeout=120)
+  ```
+
 

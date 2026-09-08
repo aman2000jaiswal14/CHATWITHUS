@@ -151,6 +151,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def fetch_license(self):
         return LicensingService.get_license_info()
 
+    @database_sync_to_async
+    def check_user_active(self, username):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.filter(username=username).first()
+        return bool(user and user.is_active)
+
     async def connect(self):
         query_string = self.scope.get('query_string', b'').decode('utf-8')
         token = None
@@ -168,6 +175,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         verified_username = verify_jwt_token(token)
         if not verified_username:
             print("[WS AUTH ERROR] Invalid or expired token")
+            await self.close(code=4003)
+            return
+
+        is_active = await self.check_user_active(verified_username)
+        if not is_active:
+            print(f"[WS AUTH ERROR] User {verified_username} is deactivated or does not exist")
             await self.close(code=4003)
             return
             

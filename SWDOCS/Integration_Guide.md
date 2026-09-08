@@ -97,7 +97,7 @@ In Python web frameworks, you can inject the user's identity directly into the p
     <script type="module">
         // 1. Generate identity signature on your backend
         // 2. Fetch JWT using the signature
-        const response = await fetch('/chat/api/auth/token/', {
+        const response = await fetch('/chat/api/acall/bas', {
             method: 'POST',
             body: JSON.stringify({ 
                 username: "{{ request.user.username }}",

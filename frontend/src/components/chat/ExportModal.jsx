@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Download, X, Calendar, FileText, Loader2 } from 'lucide-react';
 import JSZip from 'jszip';
 import encryptionService from '../../services/EncryptionService';
+import { getAuthToken } from '../../services/api';
 
 const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
     const today = new Date().toISOString().split('T')[0];
@@ -37,7 +38,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
             const response = await fetch(apiUrl, {
                 credentials: 'same-origin',
                 headers: {
-                    'Authorization': `Bearer ${config.TOKEN || ''}`
+                    'Authorization': `Bearer ${getAuthToken() || ''}`
                 }
             });
 
@@ -113,7 +114,7 @@ const ExportModal = ({ chatId, isGroup, chatName, onClose }) => {
                     if (msg.attachment && msg.attachment.url) {
                         try {
                             const fileUrl = getFullUrl(msg.attachment.url);
-                            const token = window.CHAT_F_CONFIG?.TOKEN;
+                            const token = getAuthToken();
                             const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                             const authedUrl = token && !fileUrl.includes('token=')
                                 ? (fileUrl.includes('?') ? `${fileUrl}&token=${encodeURIComponent(token)}` : `${fileUrl}?token=${encodeURIComponent(token)}`)

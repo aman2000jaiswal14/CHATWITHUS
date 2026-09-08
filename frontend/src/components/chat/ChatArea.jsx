@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, Mic, ShieldAlert, ArrowLeft, Settings, Users, Download, Paperclip, X, FileText, Image as ImageIcon, Loader2, Play, Pause, Timer, Check, Reply, Phone, Video as VideoIcon } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
 import ExportModal from './ExportModal';
-import { markRead, uploadAttachment } from '../../services/api';
+import { markRead, uploadAttachment, getAuthToken } from '../../services/api';
 import encryptionService from '../../services/EncryptionService';
 import WebSocketClient from '../../services/WebSocketClient';
 import webrtcService from '../../services/WebRTCService';
@@ -28,9 +28,10 @@ const StatusTicks = ({ status }) => {
     return <Check size={10} className="text-slate-500" strokeWidth={3} title="Sent" />;
 };
 
-const getFullUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+const getAbsoluteMediaUrl = (url) => {
+    if (!url || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+        return url;
+    }
     const config = window.CHAT_F_CONFIG || {};
     const base = config.API_BASE_URL || '';
     const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
@@ -39,7 +40,7 @@ const getFullUrl = (url) => {
 };
 
 const fetchMediaBlob = async (url) => {
-    const token = window.CHAT_F_CONFIG?.TOKEN;
+    const token = getAuthToken();
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     const authedUrl = token && !url.includes('token=')
         ? (url.includes('?') ? `${url}&token=${encodeURIComponent(token)}` : `${url}?token=${encodeURIComponent(token)}`)
@@ -48,7 +49,7 @@ const fetchMediaBlob = async (url) => {
 };
 
 const getAuthenticatedMediaUrl = (url) => {
-    const token = window.CHAT_F_CONFIG?.TOKEN;
+    const token = getAuthToken();
     if (!token || url.includes('token=') || url.startsWith('blob:') || url.startsWith('data:')) {
         return url;
     }
@@ -389,7 +390,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
             const url = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=${offset}`;
 
             try {
-                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${config.TOKEN || ''}` } });
+                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${getAuthToken() || ''}` } });
                 const data = await res.json();
                 if (data.messages && data.messages.length > 0) {
                     const processed = await Promise.all(data.messages.map(async m => {
@@ -456,7 +457,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
 
             fetch(url, {
                 headers: {
-                    'Authorization': `Bearer ${config.TOKEN || ''}`
+                    'Authorization': `Bearer ${getAuthToken() || ''}`
                 }
             })
                 .then(res => res.json())
@@ -497,7 +498,7 @@ const ChatArea = ({ onSendMessage, onBack, currentUser, openedUnread = 0, licens
                         const hasLazyLoading = window.CHAT_F_VERIFIED_MODULES && window.CHAT_F_VERIFIED_MODULES.includes('LAZYLOADING');
                         if (hasLazyLoading && processed.length === 12) {
                             const nextUrl = `${baseUrl}/chat/api/history/${activeChatId}/?is_group=${isGroupChat}&offset=12`;
-                            fetch(nextUrl, { headers: { 'Authorization': `Bearer ${config.TOKEN || ''}` } })
+                            fetch(nextUrl, { headers: { 'Authorization': `Bearer ${getAuthToken() || ''}` } })
                                 .then(res => res.json())
                                 .then(async nextData => {
                                     if (nextData.messages && nextData.messages.length > 0) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, UserPlus, User as UserIcon, Check } from 'lucide-react';
 import { useChatStore } from '../../store/useChatStore';
-import { searchUsers } from '../../services/api';
+import { searchUsers, getAuthToken } from '../../services/api';
 
 const AddGroupMember = ({ onBack }) => {
     const { activeChatId, groups, setGroups, setCurrentView } = useChatStore();
@@ -24,15 +24,18 @@ const AddGroupMember = ({ onBack }) => {
         setLoading(true);
         try {
             const data = await searchUsers(newSearch, newPage);
+            // Filter out existing members
+            const existingMemberIds = new Set((group?.members || []).map(m => m.username));
+            const newUsers = (data.users || []).filter(u => !existingMemberIds.has(u.username));
             if (newPage === 1) {
-                setUsers(data.users);
+                setUsers(newUsers);
             } else {
-                setUsers(prev => [...prev, ...data.users]);
+                setUsers(prev => [...prev, ...newUsers]);
             }
-            setHasMore(data.has_more);
+            setHasMore(data.has_more || false);
             setPage(newPage);
         } catch (err) {
-            console.error("Search failed:", err);
+            console.error('Failed to search users:', err);
         } finally {
             setLoading(false);
         }
@@ -55,7 +58,7 @@ const AddGroupMember = ({ onBack }) => {
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': config.CSRF_TOKEN || '',
-                    'Authorization': `Bearer ${config.TOKEN || ''}`,
+                    'Authorization': `Bearer ${getAuthToken() || ''}`,
                 },
                 body: JSON.stringify({ username }),
             });

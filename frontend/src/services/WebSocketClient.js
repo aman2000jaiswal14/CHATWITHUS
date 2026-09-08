@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { wca_chat } from '../protocols/messages';
 import { useChatStore } from '../store/useChatStore';
-import { fetchBookmarks, fetchGroups, fetchStatuses, fetchAiStatus, refreshToken } from './api';
+import { fetchBookmarks, fetchGroups, fetchStatuses, fetchAiStatus, refreshToken, getAuthToken, clearAuthTokens } from './api';
 import encryptionService from './EncryptionService';
 
 class WebSocketClient {
@@ -35,7 +35,7 @@ class WebSocketClient {
         
         // Dynamically append the current token to the base URL
         const baseUrl = this.url.split('?')[0];
-        const token = window.CHAT_F_CONFIG?.TOKEN || '';
+        const token = getAuthToken() || '';
         const connectionUrl = `${baseUrl}?token=${token}`;
 
         console.log('[WS] Connecting to', connectionUrl);
@@ -66,7 +66,7 @@ class WebSocketClient {
             // If the connection was closed due to authorization failure (code 4003)
             if (event.code === 4003) {
                 console.log('[WS] Authorization failure detected. Clearing token and attempting refresh...');
-                window.CHAT_F_CONFIG.TOKEN = null;
+                clearAuthTokens();
                 try {
                     await refreshToken();
                     console.log('[WS] Token refreshed successfully.');

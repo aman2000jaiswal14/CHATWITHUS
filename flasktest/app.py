@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -91,6 +91,48 @@ if os.path.exists(HOST_PRIVATE_KEY_PATH):
 @app.route("/dashboard")
 @login_required
 def dashboard():
+    return render_template("dashboard.html", user=current_user)
+
+
+def get_license_info():
+    """Read and parse CWULicense.txt for chat widget verification."""
+    license_path = os.path.join(os.path.dirname(__file__), "CWULicense.txt")
+    if not os.path.exists(license_path):
+        return None
+    try:
+        with open(license_path, "r") as f:
+            lines = f.readlines()
+
+        parsed_data = {}
+        signature_b64 = None
+        in_header = False
+        for line in lines:
+            line = line.strip()
+            if line == "--- CHAT WITH US LICENSE ---":
+                in_header = True
+                continue
+            if line == "--- END ---":
+                break
+
+            if in_header:
+                if line.startswith("SIGNATURE: "):
+                    signature_b64 = line.replace("SIGNATURE: ", "")
+                elif ": " in line:
+                    key, val = line.split(": ", 1)
+                    parsed_data[key] = val
+
+        if signature_b64 and parsed_data:
+            parsed_data["SIGNATURE"] = signature_b64
+            return parsed_data
+    except Exception as e:
+        print(f"[!] Flask license parse error: {e}")
+    return None
+
+
+@app.route("/api/chat/config")
+@login_required
+def api_chat_config():
+    """Endpoint called by ChatWidget (on load and on token refresh)."""
     identity_token = None
     if HOST_PRIVATE_KEY:
         now = int(time.time())
@@ -99,12 +141,20 @@ def dashboard():
             "iss": "flasktest",
             "aud": "chatwithus",
             "iat": now,
-            "exp": now + 300,  # 5 minutes lifespan for slow / satellite networks
+            "exp": now + 300,
             "jti": str(uuid.uuid4())
         }
         identity_token = jwt.encode(payload, HOST_PRIVATE_KEY, algorithm="RS256")
 
-    return render_template("dashboard.html", user=current_user, identity_token=identity_token)
+    host_ip = request.host.split(':')[0]
+    return jsonify({
+        "USER_ID": current_user.username,
+        "IDENTITY_TOKEN": identity_token,
+        "CONFIG_URL": "/api/chat/config",
+        "API_BASE_URL": f"https://{host_ip}:8000",
+        "WS_URL": f"wss://{host_ip}:8000/chat/ws/chat/{current_user.username}/",
+        "LICENSE_INFO": get_license_info()
+    })
 
 
 @app.route("/logout")
@@ -121,42 +171,8 @@ from datetime import datetime
 
 @app.context_processor
 def license_context():
-    license_path = os.path.join(os.path.dirname(__file__), "CWULicense.txt")
-
-    license_info = None
-    if os.path.exists(license_path):
-        try:
-            with open(license_path, "r") as f:
-                lines = f.readlines()
-
-            # Just parse the raw data for the widget to verify
-            parsed_data = {}
-            signature_b64 = None
-            
-            in_header = False
-            for line in lines:
-                line = line.strip()
-                if line == "--- CHAT WITH US LICENSE ---":
-                    in_header = True
-                    continue
-                if line == "--- END ---": break
-                
-                if in_header:
-                    if line.startswith("SIGNATURE: "):
-                        signature_b64 = line.replace("SIGNATURE: ", "")
-                    elif ": " in line:
-                        key, val = line.split(": ", 1)
-                        parsed_data[key] = val
-
-            if signature_b64 and parsed_data:
-                parsed_data["SIGNATURE"] = signature_b64
-                license_info = parsed_data
-
-        except Exception as e:
-            print(f"[!] Flask license parse error: {e}")
-
     return {
-        "CWU_LICENSE_INFO": license_info
+        "CWU_LICENSE_INFO": get_license_info()
     }
 
 # ----------------------

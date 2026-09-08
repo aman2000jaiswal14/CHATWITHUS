@@ -32,7 +32,10 @@ def get_authenticated_user(request):
         return None
         
     try:
-        return User.objects.get(username=username)
+        user = User.objects.get(username=username)
+        if not user.is_active:
+            return None
+        return user
     except User.DoesNotExist:
         return None
 
@@ -955,6 +958,7 @@ def api_mark_read(request):
 
     return JsonResponse({'status': 'ok'})
 
+@csrf_exempt
 @require_POST
 def api_generate_token(request):
     """Generate a JWT token for a given user. (Requires Identity Signature)"""
@@ -973,13 +977,17 @@ def api_generate_token(request):
         if not identity_token:
             return JsonResponse({'error': 'identity_token required'}, status=400)
 
-        from .services.auth import verify_host_identity_token
+        from .services.auth import verify_host_identity_token, generate_jwt_token
         authenticated_username = verify_host_identity_token(identity_token)
         if not authenticated_username:
             return JsonResponse({'error': 'invalid or expired identity token'}, status=403)
 
+        user = User.objects.filter(username=authenticated_username).first()
+        if user and not user.is_active:
+            return JsonResponse({'error': 'user account is deactivated'}, status=403)
+
         token = generate_jwt_token(authenticated_username)
-        return JsonResponse({'token': token, 'username': authenticated_username})
+        return JsonResponse({'token': token})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 

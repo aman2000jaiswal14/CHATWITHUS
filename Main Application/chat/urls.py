@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from . import views
 
 urlpatterns = [
@@ -25,7 +25,8 @@ urlpatterns = [
     path('api/upload/', views.api_upload_attachment, name='chat_upload_attachment'),
     path('api/register/', views.api_register, name='chat_register'),
     path('api/settings/mute/', views.api_mute_settings, name='chat_mute_settings'),
-    path('api/auth/token/', views.api_generate_token, name='chat_generate_token'),
+    re_path(r'^api/acall/bas/?$', views.api_generate_token, name='chat_generate_token'),
+    path('api/auth/token/', views.api_generate_token),
     path('api/keys/upload/', views.api_upload_public_key, name='chat_upload_public_key'),
     path('api/keys/<str:username>/', views.api_get_public_key, name='chat_get_public_key'),
     path('api/media/<str:filename>/', views.api_serve_media, name='chat_media'),

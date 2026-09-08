@@ -117,3 +117,20 @@ CSRF_TRUSTED_ORIGINS = [
     "http://your-host-app.com",
 ]
 ```
+
+---
+
+## 8. Host Identity Token Lifespan & Leeway ("Lagger")
+
+To change the RS256 identity assertion token expiration and validation leeway:
+
+### A. Token Lifespan (e.g. 5 minutes ➔ 30 seconds)
+Edit your **Host Application** backend (where `host_private_key.pem` resides):
+- **Flask**: `flasktest/app.py` line ~143: change `"exp": now + 300` to `"exp": now + 30`.
+- **Java / Spring Boot**: `ChatTokenService.java`: change validity `300_000` ms to `30_000` ms.
+
+### B. Clock Drift Leeway / Lagger (e.g. 60 seconds ➔ 30 seconds)
+Edit the **Django Chat Server**:
+- **File**: `Main Application/chat/services/auth.py`
+- **Location**: `verify_host_identity_token()` line ~59: change `leeway=60` to `leeway=30`.
+- **Cache TTL**: In line ~74, change `cache.set(nonce_cache_key, 1, timeout=600)` to `timeout=120`.

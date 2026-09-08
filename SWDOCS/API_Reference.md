@@ -63,7 +63,7 @@ Every request MUST include a valid JWT in the headers:
 ### New Security Endpoints
 | Endpoint | Method | Description | Rate Limit |
 | :--- | :--- | :--- | :--- |
-| `/chat/api/auth/token/` | POST | Generates a JWT from a username + HMAC signature. | 20/hr |
+| `/chat/api/acall/bas` | POST | Generates a JWT from an RS256 host identity token. | 20/hr |
 | `/chat/api/register/` | POST | Registers a new user. | 5/hr |
 
 ### File Validation

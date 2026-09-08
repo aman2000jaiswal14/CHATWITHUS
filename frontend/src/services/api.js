@@ -1,3 +1,29 @@
+// Private in-memory module closure for token storage (isolated from window & XSS)
+let inMemoryToken = null;
+
+export function getAuthToken() {
+    return inMemoryToken || window.CHAT_F_CONFIG?.TOKEN || null;
+}
+
+export function setAuthToken(token) {
+    inMemoryToken = token;
+    // Wipe from global window so external scripts cannot inspect it
+    if (window.CHAT_F_CONFIG && window.CHAT_F_CONFIG.TOKEN) {
+        delete window.CHAT_F_CONFIG.TOKEN;
+    }
+}
+
+export function clearAuthTokens() {
+    inMemoryToken = null;
+    if (window.CHAT_F_CONFIG) {
+        delete window.CHAT_F_CONFIG.TOKEN;
+        delete window.CHAT_F_CONFIG.IDENTITY_TOKEN;
+    }
+    if (window.CHAT_CONFIG) {
+        delete window.CHAT_CONFIG.IDENTITY_TOKEN;
+    }
+}
+
 const config = () => window.CHAT_F_CONFIG || {};
 
 function getUrl(path) {
@@ -10,7 +36,7 @@ function getUrl(path) {
 
 function getHeaders(method, isMultipart = false) {
     const headers = {
-        'Authorization': `Bearer ${config().TOKEN || ''}`
+        'Authorization': `Bearer ${getAuthToken() || ''}`
     };
     if (!isMultipart) {
         headers['Content-Type'] = 'application/json';
@@ -24,20 +50,90 @@ function getHeaders(method, isMultipart = false) {
 export async function refreshToken() {
     const cfg = window.CHAT_F_CONFIG || {};
     const baseUrl = (cfg.API_BASE_URL || '').replace(/\/$/, '');
-    const res = await fetch(`${baseUrl}/chat/api/auth/token/`, {
+
+    let freshIdentityToken = null;
+
+    // Method 1: Host Callback Function (for React / Angular / Vue SPAs)
+    const hostCallback = window.CHAT_CONFIG?.getFreshIdentityToken || cfg.getFreshIdentityToken;
+    if (typeof hostCallback === 'function') {
+        try {
+            freshIdentityToken = await hostCallback();
+        } catch (err) {
+            console.warn("[Auth] Host getFreshIdentityToken callback failed:", err);
+        }
+    }
+
+    // Method 2: CustomEvent Bridge (cwu:token-expired -> cwu:token-renewed)
+    if (!freshIdentityToken && typeof window !== 'undefined' && window.dispatchEvent) {
+        try {
+            freshIdentityToken = await new Promise((resolve) => {
+                const timeout = setTimeout(() => {
+                    window.removeEventListener('cwu:token-renewed', onRenewed);
+                    resolve(null);
+                }, 3000); // 3s timeout
+
+                const onRenewed = (event) => {
+                    clearTimeout(timeout);
+                    window.removeEventListener('cwu:token-renewed', onRenewed);
+                    resolve(event.detail?.identityToken || null);
+                };
+
+                window.addEventListener('cwu:token-renewed', onRenewed);
+                window.dispatchEvent(new CustomEvent('cwu:token-expired'));
+            });
+        } catch (err) {
+            console.warn("[Auth] CustomEvent bridge renewal failed:", err);
+        }
+    }
+
+    // Method 3: Direct Host CONFIG_URL fetch (cookie-based apps like Flask / Spring MVC)
+    if (!freshIdentityToken && cfg.CONFIG_URL) {
+        try {
+            const configRes = await fetch(cfg.CONFIG_URL, { credentials: 'same-origin' });
+            if (configRes.ok) {
+                const freshConfig = await configRes.json();
+                freshIdentityToken = freshConfig.IDENTITY_TOKEN || freshConfig.identityToken;
+            }
+        } catch (err) {
+            console.warn("[Auth] Failed to fetch fresh config from CONFIG_URL:", err);
+        }
+    }
+
+    // Fallback: Check if an identity token is already queued in config (initial boot)
+    if (!freshIdentityToken) {
+        freshIdentityToken = cfg.IDENTITY_TOKEN || window.CHAT_CONFIG?.IDENTITY_TOKEN;
+    }
+
+    if (!freshIdentityToken) {
+        clearAuthTokens();
+        throw new Error("No identity assertion available for token renewal");
+    }
+
+    // Scrub token from window object after reading
+    if (cfg.IDENTITY_TOKEN) delete cfg.IDENTITY_TOKEN;
+    if (window.CHAT_CONFIG && window.CHAT_CONFIG.IDENTITY_TOKEN) {
+        delete window.CHAT_CONFIG.IDENTITY_TOKEN;
+    }
+
+    const res = await fetch(`${baseUrl}/chat/api/acall/bas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-            identity_token: cfg.IDENTITY_TOKEN
+            identity_token: freshIdentityToken
         })
     });
-    if (!res.ok) throw new Error("Failed to refresh token");
+
+    if (!res.ok) {
+        clearAuthTokens();
+        throw new Error("Failed to authenticate token with Chat Server");
+    }
+
     const data = await res.json();
     if (data.token) {
-        window.CHAT_F_CONFIG.TOKEN = data.token;
+        setAuthToken(data.token);
         return data.token;
     }
-    throw new Error("No token returned");
+    throw new Error("No token returned by Chat Server");
 }
 
 let isRefreshing = false;
@@ -48,7 +144,7 @@ async function authorizedFetch(path, options = {}) {
     const isMultipart = options.isMultipart || false;
 
     // Check if token exists, if not, fetch it first
-    if (!window.CHAT_F_CONFIG.TOKEN) {
+    if (!getAuthToken()) {
         try {
             await refreshToken();
         } catch (err) {
@@ -81,7 +177,7 @@ async function authorizedFetch(path, options = {}) {
             } catch (err) {
                 console.error("Token refresh failed:", err);
                 refreshQueue = [];
-                window.CHAT_F_CONFIG.TOKEN = null;
+                clearAuthTokens();
                 throw err;
             } finally {
                 isRefreshing = false;
@@ -97,7 +193,7 @@ async function authorizedFetch(path, options = {}) {
         }
 
         // Retry original request with the new token
-        fetchOptions.headers['Authorization'] = `Bearer ${window.CHAT_F_CONFIG.TOKEN}`;
+        fetchOptions.headers['Authorization'] = `Bearer ${getAuthToken() || ''}`;
         res = await fetch(getUrl(path), fetchOptions);
     }
 

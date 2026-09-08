@@ -179,6 +179,55 @@ The chat widget expects a configuration object to be present in the HTML or DOM 
 - `exp`: Expiration timestamp (e.g. `now + 300` seconds; chat server allows 60s leeway for clock drift).
 - `jti`: Unique UUID nonce to prevent replay attacks (cached for 10 minutes).
 
+### Configuring Token Expiration & Clock Drift Leeway (Lagger)
+
+To adjust the token lifespan (e.g., reducing the private-key-signed identity token from 5 minutes to 30 seconds) and the clock drift tolerance ("lagger") to 30 seconds:
+
+#### 1. Where to Change Private Key Identity Token Expiry (5 min ➔ 30 seconds):
+This setting lives strictly on your **Host Application** backend (the issuer holding `host_private_key.pem`):
+- **Flask Host Application**:
+  - **File**: `flasktest/app.py`
+  - **Function**: `api_chat_config()` (line ~143)
+  - **Edit**:
+    ```python
+    # Change:
+    "exp": now + 300,   # 5 minutes
+    # To:
+    "exp": now + 30,    # 30 seconds
+    ```
+- **Java / Spring Boot Host Application**:
+  - **File**: `ChatTokenService.java` (Reference: `SWDOCS/React_Java_Integration_Guide.md` Section 3.B & Section 7)
+  - **Method**: `generateIdentityToken(String username)` (line ~153)
+  - **Edit**:
+    ```java
+    // Change (5 minutes / 300 seconds):
+    Instant expiry = now.plusSeconds(300);
+
+    // To (30 seconds):
+    Instant expiry = now.plusSeconds(30);
+    ```
+- **React Frontend Application (`ChatWidget.jsx`)**:
+  - **Changes Required**: **None!**
+  - **Why**: The React client does not hardcode token durations. It delegates all token acquisition to the `getFreshIdentityToken()` callback via Java's `/api/chat/config`. When the token expires, it automatically queries Java for a fresh 30-second token without breaking the session.
+
+#### 2. Where to Change Clock Drift Leeway / Lagger (60 seconds ➔ 30 seconds):
+This setting lives on the **Chat Server** (Django backend):
+- **File**: `Main Application/chat/services/auth.py`
+- **Function**: `verify_host_identity_token(identity_token)` (line ~59)
+- **Edit**:
+  ```python
+  # Change:
+  leeway=60   # 60s clock drift tolerance
+  # To:
+  leeway=30   # 30s clock drift tolerance
+  ```
+- **Optional Cache Nonce Timeout**: In the same file (`auth.py`, line ~74):
+  ```python
+  # When token expiry is reduced to 30s + 30s lagger, the anti-replay nonce cache timeout
+  # can be safely reduced from 600s to 120s:
+  cache.set(nonce_cache_key, 1, timeout=120)
+  ```
+
 ---
 
 ## Step 5: Troubleshooting Common Issues
