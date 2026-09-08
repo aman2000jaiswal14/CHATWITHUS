@@ -398,6 +398,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     return
 
                 receipt = wrapper.receipt
+                # Prevent reader impersonation IDOR
+                if receipt.reader_id != self.user_id:
+                    print(f"[AUTH WARN] Enforcing receipt.reader_id to {self.user_id} (attempted {receipt.reader_id})")
+                    receipt.reader_id = self.user_id
                 status_changed, new_status, sender_username = await self.update_message_receipt_in_db(receipt)
 
                 if status_changed:
@@ -460,6 +464,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         )
 
             elif wrapper.HasField('presence'):
+                # Prevent presence impersonation IDOR
+                if wrapper.presence.user_id != self.user_id:
+                    print(f"[AUTH WARN] Enforcing presence.user_id to {self.user_id} (attempted {wrapper.presence.user_id})")
+                    wrapper.presence.user_id = self.user_id
                 if self.has_protobuf():
                     if isinstance(wrapper, DictObjectWrapper):
                         pb_wrap = messages_pb2.ProtocolWrapper()

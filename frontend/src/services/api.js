@@ -28,6 +28,7 @@ export async function refreshToken() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
+            identity_token: cfg.IDENTITY_TOKEN,
             username: cfg.USER_ID,
             signature: cfg.IDENTITY_SIGNATURE 
         })

@@ -12,13 +12,14 @@ To keep the application secure and robust, distribute the integration assets as 
 | :--- | :--- | :--- |
 | **`ChatWithUsWid.js`** | **React Frontend Asset Directory** (`public/chat/` or CDN) | The compiled React frontend widget bundle containing the shadow-root mounting logic. |
 | **`CWULicense.txt`** | **Java Backend Server Classpath** (`src/main/resources/`) | The raw cryptographic license file. The backend reads and parses it to supply validation fields to the client. |
-| **`SHARED_SECRET`** | **Java Backend Application Config** (`application.properties`) | A secure environment variable string matching the Django chat server's `SECRET_KEY` used for generating secure user identity signatures. |
+| **`host_private_key.pem`** | **Java Backend Server** (`src/main/resources/keys/` or `/etc/wca/keys/`) | 2048-bit RSA Private Key used by Spring Boot to sign single-use `RS256` identity tokens. **Must never leave Java backend.** |
+| **`host_public_key.pem`** | **Django Chat Server** (`Main Application/keys/host_public_key.pem`) | Corresponding 2048-bit RSA Public Key used by Django to verify incoming identity assertions. |
 
 ---
 
-## 2. Licensing Architecture & Decoding Flow
+## 2. Licensing & Identity Architecture Flow
 
-The system enforces cryptographic license protection through an **RSA-PSS signature verification** model. The license verification flow spans three zones:
+The system operates on an **Asymmetric RSA (RS256)** Zero-Trust model. The Java backend signs identity assertions with its private key; the Django chat server verifies them with the public key. No shared secrets are ever shared between the servers.
 
 ```mermaid
 sequenceDiagram
@@ -26,40 +27,141 @@ sequenceDiagram
     participant Java as Java Backend (Spring Boot)
     participant Django as Django Chat Server
 
-    Note over Java: Loads CWULicense.txt from resource classpath
-    Java->>Java: 1. Parses raw license text into JSON properties
+    Note over Java: Loads host_private_key.pem & CWULicense.txt
     
-    React->>Java: 2. GET /api/chat/config
-    Java-->>React: 3. Returns { signature, licenseInfo: { SIGNATURE: ..., EXPIRY: ... } }
+    React->>Java: 1. GET /api/chat/config (Authenticated Session)
+    Java->>Java: 2. Signs RS256 Identity Token (sub: username, exp: +300s, jti: UUID)
+    Java->>Java: 3. Parses raw license text into JSON properties
+    Java-->>React: 4. Returns { username, identityToken, apiBaseUrl, wsUrl, licenseInfo }
     
-    Note over React: Injects config into window.CHAT_CONFIG
-    Note over React: Loads ChatWithUsWid.js
+    Note over React: Injects config into window.CHAT_CONFIG (USER_ID, IDENTITY_TOKEN)
+    Note over React: Loads ChatWithUsWid.js into Shadow DOM
     
-    Note over React: 4. Client-Side Cryptographic Verification:<br/>Widget uses Web Crypto API to verify RSA-PSS signature
+    React->>Django: 5. POST /chat/api/auth/token/ { identity_token }
+    Note over Django: 6. Verifies RS256 with host_public_key.pem<br/>Checks leeway (60s) & anti-replay nonce (jti)
+    Django-->>React: 7. Issues Chat Session JWT
     
-    React->>Django: 5. Connect / API request (with JWT)
-    Note over Django: 6. Server-Side Verification:<br/>Django reads its copy of CWULicense.txt and verifies signatures
+    React->>Django: 8. Connect WebSocket (ws://.../?token=JWT)
 ```
 
-### How License Decoding and Verification Happens
-
-1. **Backend Parsing (Java)**:
-   - The Java backend reads the plain-text `CWULicense.txt` line by line.
-   - It extracts the metadata properties (e.g. `ISSUER`, `EXPIRY`, `ALLOWED_MODULES`) and the base64-encoded `SIGNATURE` field.
-   - It converts these properties into a standard JSON map and returns it in the config response.
-
-2. **Frontend Cryptographic Verification (React Widget)**:
-   - The React widget reads `window.CHAT_CONFIG.LICENSE_INFO`.
-   - It retrieves the list of `ALLOWED_MODULES` and other fields.
-   - Using the **Web Crypto API** (`window.crypto.subtle.verify`), the widget verifies the signature using a built-in public key to ensure the license content has not been tampered with or modified.
-   - If verification succeeds, the widget enables the corresponding UI features (e.g., read receipts, self-destruct).
+### How Verification and Assertion Happen
+1. **Java Host Token Assertion**:
+   - Spring Boot generates a short-lived (5-minute) JWT signed with `host_private_key.pem` (RS256).
+   - Payload includes:
+     - `sub`: Authenticated username.
+     - `iss`: Host identifier (e.g. `java-host`).
+     - `aud`: `"chatwithus"`.
+     - `iat`: Epoch timestamp.
+     - `exp`: `now + 300` seconds (5 minutes for resilient high-latency / 1 Mbps links).
+     - `jti`: Unique random UUID nonce to prevent replay attacks.
+2. **Chat Server Cryptographic Verification**:
+   - Django receives the `identity_token` at `/chat/api/auth/token/`.
+   - Django validates the signature using `host_public_key.pem`.
+   - Django enforces `aud="chatwithus"`, allows up to 60 seconds clock drift leeway, and verifies the `jti` has not been reused (cached for 10 minutes).
+   - Upon successful verification, Django returns the internal chat session JWT.
 
 ---
 
 ## 3. Java Backend Implementation (Spring Boot)
 
-### A. License Parser Utility
-Create a parser class `ChatLicenseParser.java` to read and format the license text:
+### A. Maven Dependencies (`pom.xml`)
+Add the standard **JJWT** (Java JWT) libraries to your `pom.xml` for RS256 cryptographic signing:
+
+```xml
+<!-- JJWT for RS256 Token Signing -->
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-api</artifactId>
+    <version>0.12.6</version>
+</dependency>
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-impl</artifactId>
+    <version>0.12.6</version>
+    <scope>runtime</scope>
+</dependency>
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-jackson</artifactId>
+    <version>0.12.6</version>
+    <scope>runtime</scope>
+</dependency>
+```
+
+---
+
+### B. RSA Identity Token Service
+Create `ChatIdentityTokenService.java` to load the private PEM key and generate signed RS256 assertions:
+
+```java
+package com.example.chat.security;
+
+import io.jsonwebtoken.Jwts;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Service;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Date;
+import java.util.UUID;
+
+@Service
+public class ChatIdentityTokenService {
+
+    private final PrivateKey privateKey;
+
+    public ChatIdentityTokenService(@Value("${chat.host-private-key-path:classpath:keys/host_private_key.pem}") Resource keyResource) throws Exception {
+        this.privateKey = loadPrivateKey(keyResource);
+    }
+
+    private PrivateKey loadPrivateKey(Resource keyResource) throws Exception {
+        try (InputStream is = keyResource.getInputStream()) {
+            String keyContent = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            // Strip PEM headers and whitespace
+            String cleanKey = keyContent
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replace("-----BEGIN RSA PRIVATE KEY-----", "")
+                    .replace("-----END RSA PRIVATE KEY-----", "")
+                    .replaceAll("\\s+", "");
+
+            byte[] decoded = Base64.getDecoder().decode(cleanKey);
+            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decoded);
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            return kf.generatePrivate(spec);
+        }
+    }
+
+    /**
+     * Generates a 5-minute RS256 identity assertion token for the chat server.
+     */
+    public String generateIdentityToken(String username) {
+        Instant now = Instant.now();
+        Instant expiry = now.plusSeconds(300); // 5 minutes validity
+
+        return Jwts.builder()
+                .subject(username)
+                .issuer("java-host")
+                .audience().add("chatwithus").and()
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiry))
+                .id(UUID.randomUUID().toString()) // Anti-replay JTI nonce
+                .signWith(privateKey, Jwts.SIG.RS256)
+                .compact();
+    }
+}
+```
+
+---
+
+### C. License Parser Utility
+Create `ChatLicenseParser.java` to parse the raw license text:
 
 ```java
 package com.example.chat.licensing;
@@ -111,13 +213,16 @@ public class ChatLicenseParser {
 }
 ```
 
-### B. Controller for Identity Signing and Configuration
-Implement the REST endpoint that delivers both the **identity signature** and the **parsed license data**:
+---
+
+### D. Controller for Configuration & Identity Token
+Implement the REST endpoint returning the **`identityToken`** and license info:
 
 ```java
 package com.example.chat.controller;
 
 import com.example.chat.licensing.ChatLicenseParser;
+import com.example.chat.security.ChatIdentityTokenService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -128,9 +233,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -138,8 +240,8 @@ import java.util.Map;
 @RequestMapping("/api/chat")
 public class ChatConfigController {
 
-    @Value("${chat.shared-secret}")
-    private String sharedSecret;
+    private final ChatIdentityTokenService tokenService;
+    private final ResourceLoader resourceLoader;
 
     @Value("${chat.server.api-url}")
     private String apiBaseUrl;
@@ -147,9 +249,8 @@ public class ChatConfigController {
     @Value("${chat.server.ws-url}")
     private String wsBaseUrl;
 
-    private final ResourceLoader resourceLoader;
-
-    public ChatConfigController(ResourceLoader resourceLoader) {
+    public ChatConfigController(ChatIdentityTokenService tokenService, ResourceLoader resourceLoader) {
+        this.tokenService = tokenService;
         this.resourceLoader = resourceLoader;
     }
 
@@ -158,20 +259,9 @@ public class ChatConfigController {
             @AuthenticationPrincipal UserDetails userDetails) {
         try {
             String username = userDetails.getUsername();
-            
-            // 1. Generate identity signature (HMAC-SHA256)
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(
-                sharedSecret.getBytes(StandardCharsets.UTF_8), 
-                "HmacSHA256"
-            );
-            mac.init(secretKey);
-            byte[] rawHmac = mac.doFinal(username.getBytes(StandardCharsets.UTF_8));
-            
-            StringBuilder signatureHex = new StringBuilder();
-            for (byte b : rawHmac) {
-                signatureHex.append(String.format("%02x", b));
-            }
+
+            // 1. Generate RS256 Identity Token signed by Host Private Key
+            String identityToken = tokenService.generateIdentityToken(username);
 
             // 2. Load and parse CWULicense.txt from classpath resources
             Resource licenseResource = resourceLoader.getResource("classpath:CWULicense.txt");
@@ -182,7 +272,7 @@ public class ChatConfigController {
             // 3. Assemble response payload
             Map<String, Object> response = new HashMap<>();
             response.put("username", username);
-            response.put("signature", signatureHex.toString());
+            response.put("identityToken", identityToken);
             response.put("apiBaseUrl", apiBaseUrl);
             response.put("wsUrl", wsBaseUrl + "/chat/ws/chat/" + username + "/");
             response.put("licenseInfo", licenseInfo);
@@ -199,7 +289,7 @@ public class ChatConfigController {
 
 ## 4. React Frontend Integration
 
-Create an integration component `ChatWidget.jsx` in your React host project:
+Create an integration component `ChatWidget.jsx` in your React project:
 
 ```jsx
 import React, { useEffect, useState } from 'react';
@@ -209,7 +299,7 @@ const ChatWidget = ({ userSessionToken }) => {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    // 1. Retrieve the configuration and license details from the Java Backend
+    // 1. Retrieve configuration, identity token, and license from Java Backend
     fetch('/api/chat/config', {
       headers: {
         'Authorization': `Bearer ${userSessionToken}`,
@@ -217,14 +307,14 @@ const ChatWidget = ({ userSessionToken }) => {
       }
     })
       .then(res => {
-        if (!res.ok) throw new Error('Could not load configuration');
+        if (!res.ok) throw new Error('Could not load chat configuration');
         return res.json();
       })
       .then(data => {
         // 2. Inject parameters into the global CHAT_CONFIG object
         window.CHAT_CONFIG = {
           USER_ID: data.username,
-          IDENTITY_SIGNATURE: data.signature,
+          IDENTITY_TOKEN: data.identityToken, // RS256 Identity Assertion
           API_BASE_URL: data.apiBaseUrl,
           WS_URL: data.wsUrl,
           LICENSE_INFO: data.licenseInfo
@@ -249,7 +339,7 @@ const ChatWidget = ({ userSessionToken }) => {
   }, [userSessionToken]);
 
   if (error) return <div style={{ color: '#ef4444' }}>Chat connection error</div>;
-  return null; // Mounts floating shadow root directly to the document body
+  return null; // Mounts floating shadow root directly to document body
 };
 
 export default ChatWidget;
@@ -259,8 +349,12 @@ export default ChatWidget;
 
 ## 5. Security Summary Checklist
 
-* **Zero Secret Exposure**: The `SHARED_SECRET` is kept strictly in Java memory/properties. The client React application only receives the one-off signature and never learns the secret.
-* **Cryptographic Tamper Prevention**: If anyone alters the parsed `licenseInfo` keys or allowed modules in the frontend, the widget's internal Web Crypto signature validation detects the change and locks down the application instantly.
+* **Asymmetric Zero-Trust (RS256)**: The Java Host holds the private key (`host_private_key.pem`); the Chat Server holds only the public key (`host_public_key.pem`). No shared secret or server key is ever exposed.
+* **Anti-Replay Protection**: Every identity token contains a unique `jti` UUID nonce. The Django Chat Server records nonces in Redis/cache for 10 minutes and rejects duplicate submissions.
+* **Network Latency & Clock Drift Resilience**:
+  - Tokens have a **5-minute (`exp: now + 300`)** lifespan, ensuring smooth handshake over slow 1 Mbps or satellite links.
+  - Verification includes **60 seconds leeway** to gracefully accommodate server clock skew in air-gapped environments.
+* **Cryptographic Tamper Prevention**: If any entity tampers with `licenseInfo` or permissions in the frontend, the widget's internal Web Crypto signature validation aborts initialization immediately.
 
 ---
 

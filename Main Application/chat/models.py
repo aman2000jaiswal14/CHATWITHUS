@@ -118,6 +118,7 @@ class UserStatus(models.Model):
     )
     status = models.IntegerField(choices=STATUS_CHOICES, default=0)
     is_online = models.BooleanField(default=False)
+    connection_count = models.IntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

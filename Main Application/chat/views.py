@@ -961,19 +961,22 @@ def api_generate_token(request):
 
     try:
         data = json.loads(request.body)
+        identity_token = data.get('identity_token')
         username = data.get('username')
         signature = data.get('signature')
-        
-        if not username:
-             return JsonResponse({'error': 'username required'}, status=400)
-        
-        # Verify HMAC signature from host
-        from .services.auth import verify_hmac_signature
-        if not verify_hmac_signature(username, signature):
-            return JsonResponse({'error': 'invalid identity signature'}, status=403)
-             
-        token = generate_jwt_token(username)
-        return JsonResponse({'token': token})
+
+        authenticated_username = None
+
+        if not identity_token:
+            return JsonResponse({'error': 'identity_token required'}, status=400)
+
+        from .services.auth import verify_host_identity_token
+        authenticated_username = verify_host_identity_token(identity_token)
+        if not authenticated_username:
+            return JsonResponse({'error': 'invalid or expired identity token'}, status=403)
+
+        token = generate_jwt_token(authenticated_username)
+        return JsonResponse({'token': token, 'username': authenticated_username})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -1097,24 +1100,30 @@ def api_register(request):
     data = json.loads(request.body)
     username = data.get('username')
     name = data.get('name')
-    role = data.get('role')
+    role = data.get('role', 'User')
 
-    if not username or not name or not role:
-        return JsonResponse({'error': 'all fields required'}, status=400)
+    if not username or not name:
+        return JsonResponse({'error': 'username and name required'}, status=400)
+
+    # Disallow self-assigning privileged roles via public registration
+    RESTRICTED_ROLES = {'commander', 'admin', 'moderator', 'system'}
+    if str(role).strip().lower() in RESTRICTED_ROLES:
+        return JsonResponse({'error': f'Role {role} cannot be assigned via public registration.'}, status=403)
 
     if User.objects.filter(username=username).exists():
         return JsonResponse({'error': 'username already exists'}, status=400)
 
     try:
-        user = User.objects.create_user(
+        user = User(
             username=username,
             name=name,
-            role=role,
-            password='Test@123',
-            email='Test@gmail.com'
+            role=role if role else 'User',
+            email=f"{username}@chatwithus.local"
         )
+        user.set_unusable_password()  # Disables password logins; accounts authenticate via token
+        user.save()
         from .models import UserStatus
-        UserStatus.objects.get_or_create(user=user, defaults={'status': 0})
+        UserStatus.objects.get_or_create(user=user, defaults={'status': 0, 'connection_count': 0})
         return JsonResponse({'status': 'created', 'username': username})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

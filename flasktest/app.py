@@ -78,23 +78,33 @@ def login():
 from flask import send_from_directory
 import os
     
-import hmac
-import hashlib
+import time
+import uuid
+import jwt
+
+HOST_PRIVATE_KEY_PATH = os.path.join(os.path.dirname(__file__), "keys", "host_private_key.pem")
+HOST_PRIVATE_KEY = None
+if os.path.exists(HOST_PRIVATE_KEY_PATH):
+    with open(HOST_PRIVATE_KEY_PATH, "r") as f:
+        HOST_PRIVATE_KEY = f.read()
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    # In production, this should match your Django SECRET_KEY
-    SHARED_SECRET = 'django-insecure-(5)l+imw=lio-m6&zx6c(9-5v3g3o8ec8kxdfjm1s06xl=nrc6'
-    
-    # Generate HMAC-SHA256 signature for the current user's username
-    signature = hmac.new(
-        SHARED_SECRET.encode('utf-8'),
-        current_user.username.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    
-    return render_template("dashboard.html", user=current_user, identity_signature=signature)
+    identity_token = None
+    if HOST_PRIVATE_KEY:
+        now = int(time.time())
+        payload = {
+            "sub": current_user.username,
+            "iss": "flasktest",
+            "aud": "chatwithus",
+            "iat": now,
+            "exp": now + 300,  # 5 minutes lifespan for slow / satellite networks
+            "jti": str(uuid.uuid4())
+        }
+        identity_token = jwt.encode(payload, HOST_PRIVATE_KEY, algorithm="RS256")
+
+    return render_template("dashboard.html", user=current_user, identity_token=identity_token)
 
 
 @app.route("/logout")

@@ -84,36 +84,104 @@ Ensure the following are installed on your system:
    ```
 
 ---
-5. **Generate License**:
-   ```bash
-   cd CWU
-   ./generate_premium_license.sh
-   
-   ```
 
-6. **Run with SSL**:
-   ```bash
-   cd ../Main\ Application/
-   ./run_ssl_dev.sh  
-   
-   ```
-## Step 3: Global Configuration
+## Step 3: Host Identity Authentication Keys (Asymmetric RSA-2048)
 
-The chat widget expects a configuration object to be present in the HTML of the main application. Ensure your host page includes:
+WCA Secure Chat uses an **Asymmetric RSA (RS256)** identity assertion model. The 3rd-party Host Application holds the **Private Key** to sign user login assertions, and the Chat Server holds the corresponding **Public Key** to verify them.
 
-```html
-<script>
-    window.CHAT_CONFIG = {
-        USER_ID: "current_username", // Dynamic from your auth system
-        CSRF_TOKEN: "your_django_csrf_token",
-        WS_URL: "ws://" + window.location.host + "/ws/chat/current_username/"
-    };
-</script>
+### 1. Key Generation Code
+
+You can generate the 2048-bit RSA keypair using either **OpenSSL** or a standalone **Python script**.
+
+#### Option A: Using OpenSSL (CLI)
+Run these commands in your terminal:
+```bash
+# 1. Generate 2048-bit RSA Private Key (PKCS#8 format)
+openssl genpkey -algorithm RSA -out host_private_key.pem -pkeyopt rsa_keygen_bits:2048
+
+# 2. Extract the Public Key in PEM format
+openssl rsa -pubout -in host_private_key.pem -out host_public_key.pem
+```
+
+#### Option B: Using Python Script (`generate_keys.py`)
+Run this Python snippet to generate both PEM files automatically:
+```python
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+
+# 1. Generate 2048-bit Private Key
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048
+)
+
+# 2. Export Private Key in PEM (PKCS#8) format
+private_pem = private_key.private_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.NoEncryption()
+)
+with open("host_private_key.pem", "wb") as f:
+    f.write(private_pem)
+
+# 3. Export Public Key in PEM (SubjectPublicKeyInfo) format
+public_pem = private_key.public_key().public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+)
+with open("host_public_key.pem", "wb") as f:
+    f.write(public_pem)
+
+print("RSA Keypair generated successfully: host_private_key.pem & host_public_key.pem")
+```
+
+### 2. File Placement & Deployment
+
+| Key File | Target Server / Application | Target Location | Permissions |
+| :--- | :--- | :--- | :--- |
+| **`host_private_key.pem`** | **Host Application** (Flask / Spring Boot / Node) | `<host_app>/keys/host_private_key.pem` | `chmod 600` (Strictly secret! Never commit to public git) |
+| **`host_public_key.pem`** | **Chat Server** (Django) | `Main Application/keys/host_public_key.pem` | `chmod 644` (Safe to distribute) |
+
+> [!IMPORTANT]
+> The private key **NEVER** leaves the Host backend. The chat server only ever needs the public key.
+
+### 3. Generate Secure Django `SECRET_KEY`
+Never use the default or sample Django secret key in production. Generate a random 50-character secret:
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(50))"
+```
+Place this into `Main Application/.env`:
+```env
+SECRET_KEY=your_generated_secret_key_here
 ```
 
 ---
 
-## Step 4: Troubleshooting Common Issues
+## Step 4: Global Configuration (Host Application)
+
+The chat widget expects a configuration object to be present in the HTML or DOM of the host application. Your host backend must inject an **`IDENTITY_TOKEN`** (RS256 JWT assertion signed with `host_private_key.pem`):
+
+```html
+<script>
+    window.CHAT_CONFIG = {
+        USER_ID: "current_username",             // Logged-in user on Host system
+        IDENTITY_TOKEN: "eyJhbGciOiJSUzI1NiIs...", // 5-minute RS256 JWT assertion signed by Host private key
+        API_BASE_URL: "https://chat.example.com",
+        WS_URL: "wss://chat.example.com/ws/chat/current_username/"
+    };
+</script>
+```
+
+#### JWT Assertion Payload Expected by Chat Server:
+- `sub`: The authenticated username (must match `USER_ID`).
+- `iss`: Issuer identifier of the host application (e.g. `flasktest` or `my_app`).
+- `aud`: Must be `"chatwithus"`.
+- `exp`: Expiration timestamp (e.g. `now + 300` seconds; chat server allows 60s leeway for clock drift).
+- `jti`: Unique UUID nonce to prevent replay attacks (cached for 10 minutes).
+
+---
+
+## Step 5: Troubleshooting Common Issues
 
 ### "Chat Vanishes on Refresh"
 - **Check**: Ensure `python manage.py migrate` was run.
